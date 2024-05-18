@@ -138,8 +138,8 @@ def duplicate_row(matrix: np.array, row_index: tuple) -> np.array:
 
     Parameters
     ----------
-    matrix: The matrix to duplicate the row.
-    row_index (i, j): i - the row to duplicate, j - the number of times to duplicate.
+    `matrix`: The matrix to duplicate the row.
+    `row_index (i, j)`: i - the row to duplicate, j - the number of times to duplicate.
 
     Returns
     ----------
@@ -170,8 +170,8 @@ def create_zeros_columns(matrix: np.array, columns_amount: int) -> np.array:
 
     Parameters
     ----------
-    matrix: The matrix to duplicate the column.
-    columns_amount: The number of columns to duplicate.
+    `matrix`: The matrix to duplicate the column.
+    `columns_amount`: The number of columns to duplicate.
 
     Returns
     ----------
@@ -201,7 +201,7 @@ def find_min_value_in_row_and_subtruct(matrix: np.array) -> np.array:
 
     Parameters
     ----------
-    matrix: The matrix to find the minimum value in each row and subtract it.
+    `matrix`: The matrix to find the minimum value in each row and subtract it.
 
     Returns
     ----------
@@ -230,7 +230,7 @@ def find_min_value_in_column_and_subtruct(matrix: np.array) -> np.array:
 
     Parameters
     ----------
-    matrix: The matrix to find the minimum value in each column and subtract it.
+    `matrix`: The matrix to find the minimum value in each column and subtract it.
 
     Returns
     ----------
@@ -259,8 +259,8 @@ def find_zero_star(matrix: np.array, unavailable_dict: dict) -> tuple[np.array, 
 
     Parameters
     ----------
-    matrix: The matrix to find the first zero that is not 0*.
-    unavailable_dict: The dictionary of the unavailable zeros.
+    `matrix`: The matrix to find the first zero that is not 0*.
+    `unavailable_dict`: The dictionary of the unavailable zeros.
 
     Returns
     ----------
@@ -286,7 +286,7 @@ def color_columns(matrix: np.array) -> np.array:
 
     Parameters
     ----------
-    matrix: The matrix to color the columns.
+    `matrix`: The matrix to color the columns.
 
     Returns
     ----------
@@ -308,14 +308,59 @@ def color_columns(matrix: np.array) -> np.array:
     array([ True,  True,  True])
     """
 
+def color_row(matrix: np.array, prime_z: dict, colored_columns: np.array) -> tuple[np.array, np.array]:
+    """
+    Color the rows of the matrix based on the condition:
+    If there is 0* in the row of 0 in Prime_z then color the row and remove the color from the column of the 0*.
+
+    Parameters
+    ----------
+    `matrix`: The matrix to color the rows.
+    `prime_z`: Dictionary containing 0 values and their indexes.
+    `colored_columns`: Vector containing True / False values at each index, which is colored / not colored for each column.
+
+    Returns
+    ----------
+    Tuple of Vectors containing True / False values at each index, which is colored / not colored.
+    First vector is the rows which is colored, and the second vector is the columns from which the color is removed.
+
+    Example 1:
+    >>> matrix = np.array([[0, 0*, 3], [4, 5, 6], [7, 8, 9]])
+    >>> prime_z = {0: (0, 0)}
+    >>> colored_columns = np.array([False, True, False])
+    >>> color_row(matrix, prime_z, colored_columns)
+    (array([ True, False, False]), array([False, False, False]))
+    """
+
+def uncolor_rows(matrix: np.array, colored_rows: np.array) -> np.array:
+    """
+    Traverse the matrix and uncolor the rows that are colored.
+
+    Parameters
+    ----------
+    `matrix`: The matrix to uncolor the rows.
+    `colored_rows`: Vector containing True / False values at each index, which is colored / not colored.
+
+    Returns
+    ----------
+    Vector of the updated colored rows.
+
+    Example 1:
+    >>> matrix = np.array([[0, 0*, 3], [4, 5, 6], [7, 8, 9]])
+    >>> colored_rows = np.array([True, False, False])
+    >>> uncolor_rows(matrix, colored_rows)
+    array([False, False, False])
+    """
+    pass
+
 def mark_unavailable_zeros(matrix: np.array, unavailable_dict: dict) -> dict:
     """
     Find a zero in the matrix that is not 0* and mark it as unavailable.
 
     Parameters
     ----------
-    matrix: The matrix to find the zero that is not 0* and mark it as unavailable.
-    unavailable_dict: The dictionary of the unavailable zeros.
+    `matrix`: The matrix to find the zero that is not 0* and mark it as unavailable.
+    `unavailable_dict`: The dictionary of the unavailable zeros.
 
     Returns
     ----------
@@ -331,14 +376,16 @@ def mark_unavailable_zeros(matrix: np.array, unavailable_dict: dict) -> dict:
     >>> mark_unavailable_zeros(matrix)
     {0: (1, 0), 1: (2, 0)}
     """
+    pass
 
-def save_smallest_value(matrix: np.array) -> int:
+def save_smallest_value(matrix: np.array, colored_vector: np.array) -> int:
     """
     Save the smallest value in the matrix (without unavailable values) such that his row or column is not colored.
 
     Parameters
     ----------
-    matrix: The matrix to save the smallest value.
+    `matrix`: The matrix to save the smallest value.
+    `colored_vector`: Vector containing True / False values at each index, which is colored / not colored.
 
     Returns
     ----------
@@ -346,12 +393,69 @@ def save_smallest_value(matrix: np.array) -> int:
 
     Example 1:
     >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    >>> save_smallest_value(matrix)
+    >>> colored_vector = np.array([False, False, False])
+    >>> save_smallest_value(matrix, colored_vector)
     1
 
     Example 2:
-    >>> matrix = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]])
-    >>> save_smallest_value(matrix)
-    0
+    >>> matrix = np.array([[0*, 1, 4], [2, 0*, 2], [0, 1, 3]])
+    >>> colored_vector = np.array([True, False, False])
+    >>> save_smallest_value(matrix, colored_vector)
+    2
     """
     pass
+
+def add_h_to_colored_row_elements(matrix: np.array, colored_row_vector: np.array ,h: int) -> np.array:
+    """
+    Add the value h to each element in the row that is colored.
+
+    Parameters
+    ----------
+    `matrix`: The matrix to add the value h to each element in the row that is colored.
+    `colored_row_vector`: Vector containing True / False values at each index, which is colored / not colored.
+    `h`: The value to add to each element in the row that is colored.
+
+    Returns
+    ----------
+    The matrix with the value h added to each element in the row that is colored.
+
+    Example 1:
+    >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    >>> colored_row_vector = np.array([True, False, False])
+    >>> h = 2
+    >>> add_h_to_colored_row_elements(matrix, colored_row_vector, h)
+    array([[3, 4, 5],
+           [4, 5, 6],
+           [7, 8, 9]])
+    """
+    pass
+
+def substract_h_from_uncolored_columns(matrix: np.array, colored_columns_vector: np.array, h: int) -> np.array:
+    """
+    Substract the value h from each element in the column that is not colored.
+
+    Parameters
+    ----------
+    `matrix`: The matrix to substract the value h from each element in the column that is not colored.
+    `colored_columns_vector`: Vector containing True / False values at each index, which is colored / not colored.
+    `h`: The value to substract from each element in the column that is not colored.
+
+    Returns
+    ----------
+    The matrix with the value h substracted from each element in the column that is not colored.
+
+    Example 1:
+    >>> matrix = np.array([[7, 4, 10], [4, 5, 6], [7, 8, 9]])
+    >>> colored_columns_vector = np.array([False, True, False])
+    >>> h = 2
+    >>> substract_h_from_uncolored_columns(matrix, colored_columns_vector, h)
+    array([[5,  4,  8],
+           [2,  5,  4],
+           [5,  8,  7]])
+    """
+    pass
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
