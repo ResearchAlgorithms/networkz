@@ -81,6 +81,13 @@ class TestManyToManyAssignment:
         with pytest.raises(ValueError, match="The performance matrix has values less then 0"):
             mma(ability_agent_vector, task_range_vector, performance_matrix)
 
+    def test_empty_input():
+        ability_agent_vector = np.array([])
+        task_range_vector = np.array([])
+        performance_matrix = np.array([])
+        with pytest.raises(ValueError, match="Empty input"):
+            mma(ability_agent_vector, task_range_vector, performance_matrix)
+
     def text_example_6():
         ability_agent_vector = np.array([1, 2, 1])
         task_range_vector = np.array([1, 1, 1, 1])

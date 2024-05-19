@@ -280,34 +280,6 @@ def find_zero_star(matrix: np.array, unavailable_dict: dict) -> tuple[np.array, 
     """
     pass
 
-def color_columns(matrix: np.array) -> np.array:
-    """
-    Color the columns of the matrix which contains a 0*.
-
-    Parameters
-    ----------
-    `matrix`: The matrix to color the columns.
-
-    Returns
-    ----------
-    Vector containing True / False values at each index, which is colored / not colored.
-
-    Example 1:
-    >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    >>> color_columns(matrix)
-    array([False, False, False])
-
-    Example 2:
-    >>> matrix = np.array([[0*, 1, 2], [0, 1, 2], [0, 1, 2]])
-    >>> color_columns(matrix)
-    array([ True, False, False])
-
-    Example 3:
-    >>> matrix = np.array([[0*, 1, 2], [1, 0*, 2], [1, 1, 0*]])
-    >>> color_columns(matrix)
-    array([ True,  True,  True])
-    """
-
 def color_row(matrix: np.array, prime_z: dict, colored_columns: np.array) -> tuple[np.array, np.array]:
     """
     Color the rows of the matrix based on the condition:
@@ -331,26 +303,6 @@ def color_row(matrix: np.array, prime_z: dict, colored_columns: np.array) -> tup
     >>> color_row(matrix, prime_z, colored_columns)
     (array([ True, False, False]), array([False, False, False]))
     """
-
-def uncolor_rows(matrix: np.array, colored_rows: np.array) -> np.array:
-    """
-    Traverse the matrix and uncolor the rows that are colored.
-
-    Parameters
-    ----------
-    `matrix`: The matrix to uncolor the rows.
-    `colored_rows`: Vector containing True / False values at each index, which is colored / not colored.
-
-    Returns
-    ----------
-    Vector of the updated colored rows.
-
-    Example 1:
-    >>> matrix = np.array([[0, 0*, 3], [4, 5, 6], [7, 8, 9]])
-    >>> colored_rows = np.array([True, False, False])
-    >>> uncolor_rows(matrix, colored_rows)
-    array([False, False, False])
-    """
     pass
 
 def mark_unavailable_zeros(matrix: np.array, unavailable_dict: dict) -> dict:
@@ -368,24 +320,28 @@ def mark_unavailable_zeros(matrix: np.array, unavailable_dict: dict) -> dict:
 
     Example 1:
     >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    >>> unavailable_dict = {}
     >>> mark_unavailable_zeros(matrix)
     {}
 
     Example 2:
     >>> matrix = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]])
+    >>> unavailable_dict = {}
     >>> mark_unavailable_zeros(matrix)
     {0: (1, 0), 1: (2, 0)}
     """
     pass
 
-def save_smallest_value(matrix: np.array, colored_vector: np.array) -> int:
+def save_smallest_value(matrix: np.array, colored_rows: np.array, colored_columns: np.array, unavailable_dict: dict) -> int:
     """
     Save the smallest value in the matrix (without unavailable values) such that his row or column is not colored.
 
     Parameters
     ----------
     `matrix`: The matrix to save the smallest value.
-    `colored_vector`: Vector containing True / False values at each index, which is colored / not colored.
+    `colored_rows`: Vector containing True / False values at each index, which is colored / not colored (ROWS)
+    `colored_columns`: Vector containing True / False values at each index, which is colored / not colored (COLUMNS)
+    `unavailable_dict`: The dictionary of the unavailable zeros.
 
     Returns
     ----------
@@ -393,14 +349,18 @@ def save_smallest_value(matrix: np.array, colored_vector: np.array) -> int:
 
     Example 1:
     >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    >>> colored_vector = np.array([False, False, False])
-    >>> save_smallest_value(matrix, colored_vector)
+    >>> colored_rows = np.array([False, False, False])
+    >>> colored_columns = np.array([False, False, False])
+    >>> unavailable_dict = {}
+    >>> save_smallest_value(matrix, colored_rows, colored_columns)
     1
 
     Example 2:
     >>> matrix = np.array([[0*, 1, 4], [2, 0*, 2], [0, 1, 3]])
-    >>> colored_vector = np.array([True, False, False])
-    >>> save_smallest_value(matrix, colored_vector)
+    >>> colored_rows = np.array([True, False, False])
+    >>> colored_columns = np.array([False, True, False])
+    >>> unavailable_dict = {0: (2, 0)}
+    >>> save_smallest_value(matrix, colored_rows, colored_columns, unavailable_dict)
     2
     """
     pass
