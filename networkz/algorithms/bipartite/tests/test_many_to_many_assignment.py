@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import networkz as nx
-import networkz.algorithms.matching.many_to_many_assignment as mma
+import networkz.algorithms.bipartite.many_to_many_assignment as mma
 
 def arrays_are_equal(arr1: np.array, arr2: np.array):
     assert arr1.shape == arr2.shape, f"Shape mismatch: {arr1.shape} != {arr2.shape}"
@@ -24,6 +24,10 @@ def generate_random_test_case(seed, size_agents, size_tasks, ability_max, task_m
     return ability_agent_vector, task_range_vector, performance_matrix
 
 class TestManyToManyAssignment:
+
+    def __init__(self) -> None:
+        many_to_many = mma()
+
     def test_example_1():
         ability_agent_vector = np.array([1, 2, 1, 1])
         task_range_vector = np.array([1, 1, 1, 1, 1])
