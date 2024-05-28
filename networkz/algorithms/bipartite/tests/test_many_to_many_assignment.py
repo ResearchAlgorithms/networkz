@@ -1,7 +1,8 @@
+import unittest
 import pytest
 import numpy as np
-import networkz as nx
-import networkz.algorithms.bipartite.many_to_many_assignment as mma
+from networkz.algorithms.bipartite.many_to_many_assignment import ManyToManyAssignment
+
 
 def arrays_are_equal(arr1: np.array, arr2: np.array):
     assert arr1.shape == arr2.shape, f"Shape mismatch: {arr1.shape} != {arr2.shape}"
@@ -23,26 +24,25 @@ def generate_random_test_case(seed, size_agents, size_tasks, ability_max, task_m
     performance_matrix = np.random.randint(0, 100, size=(size_agents, size_tasks))
     return ability_agent_vector, task_range_vector, performance_matrix
 
-class TestManyToManyAssignment:
-
-    def __init__(self) -> None:
-        many_to_many = mma()
-
-    def test_example_1():
+class TestManyToManyAssignment(unittest.TestCase):
+    def setUp(self) -> None:
+        self.object = ManyToManyAssignment()
+        
+    def test_example_1(self):
         ability_agent_vector = np.array([1, 2, 1, 1])
         task_range_vector = np.array([1, 1, 1, 1, 1])
         performance_matrix = np.array([[49, 45, 39, 15, 16], 
                                     [5, 30, 85, 22, 78], 
                                     [61, 16, 71, 59, 20], 
                                     [44, 79, 1, 48, 22]])
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         expected_output = np.array([[0, 0, 0, 0, 1], 
                                     [1, 0, 0, 1, 0], 
                                     [0, 1, 0, 0, 0], 
                                     [0, 0, 1, 0, 0]])
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
         arrays_are_equal(output, expected_output)
 
-    def test_example_2():
+    def test_example_2(self):
         ability_agent_vector = np.array([1, 1, 1])
         task_range_vector = np.array([1, 1, 1])
         performance_matrix = np.array([[40, 60, 15], 
@@ -51,10 +51,10 @@ class TestManyToManyAssignment:
         expected_output = np.array([[0, 0, 1], 
                                     [1, 0, 0], 
                                     [0, 1, 0]])
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         arrays_are_equal(output, expected_output)
 
-    def test_example_3():
+    def test_example_3(self):
         ability_agent_vector = np.array([1, 1, 1])
         task_range_vector = np.array([1, 1, 1])
         performance_matrix = np.array([[30, 25, 10], 
@@ -63,10 +63,10 @@ class TestManyToManyAssignment:
         expected_output = np.array([[0, 0, 1], 
                                     [0, 1, 0], 
                                     [1, 0, 0]])
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         arrays_are_equal(output, expected_output)
 
-    def test_example_4():
+    def test_example_4(self):
         ability_agent_vector = np.array([2, 2, 1, 3])
         task_range_vector = np.array([1, 2, 3, 1, 1])
         performance_matrix = np.array([[8, 6, 7, 9, 5], 
@@ -74,25 +74,25 @@ class TestManyToManyAssignment:
                                     [7, 8, 5, 6, 8], 
                                     [7, 6, 9, 7, 5]])
         with pytest.raises(ValueError, match="The Cordinality Constraint is not satisfied"):
-            mma(ability_agent_vector, task_range_vector, performance_matrix)
+            self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
 
-    def test_example_5():
+    def test_example_5(self):
         ability_agent_vector = np.array([1, 1, 1])
         task_range_vector = np.array([1, 1, 1])
         performance_matrix = np.array([[-30, 25, -1], 
                                     [-7, 10, 2], 
                                     [25, -4, -3]])
         with pytest.raises(ValueError, match="The performance matrix has values less then 0"):
-            mma(ability_agent_vector, task_range_vector, performance_matrix)
+            self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
 
-    def test_empty_input():
+    def test_empty_input(self):
         ability_agent_vector = np.array([])
         task_range_vector = np.array([])
         performance_matrix = np.array([])
         with pytest.raises(ValueError, match="Empty input"):
-            mma(ability_agent_vector, task_range_vector, performance_matrix)
+            self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
 
-    def text_example_6():
+    def text_example_6(self):
         ability_agent_vector = np.array([1, 2, 1])
         task_range_vector = np.array([1, 1, 1, 1])
         performance_matrix = np.array([[3, 4, 5, 2], 
@@ -101,40 +101,40 @@ class TestManyToManyAssignment:
         expected_output = np.array([[0, 0, 0, 1], 
                                     [0, 1, 1, 0], 
                                     [0, 0, 1, 0]])
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         arrays_are_equal(output, expected_output)
 
-    def test_large_example_1():
+    def test_large_example_1(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(0, 50, 50, 3, 3)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)
 
-    def test_large_example_2():
+    def test_large_example_2(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(1, 100, 100, 3, 3)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)
 
-    def test_random_example_1():
+    def test_random_example_1(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(2, 10, 10, 3, 3)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)
 
-    def test_random_example_2():
+    def test_random_example_2(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(3, 20, 20, 4, 4)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)
 
-    def test_random_example_3():
+    def test_random_example_3(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(4, 30, 30, 5, 5)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)
 
-    def test_random_example_4():
+    def test_random_example_4(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(5, 40, 40, 3, 3)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)
 
-    def test_random_example_5():
+    def test_random_example_5(self):
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(6, 50, 50, 4, 4)
-        output = mma(ability_agent_vector, task_range_vector, performance_matrix)
+        output = self.object.many_to_many_assignment(taskRangeVector=task_range_vector, agentVector=ability_agent_vector, matrix=performance_matrix)
         check_constraints(output, ability_agent_vector, task_range_vector)

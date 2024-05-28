@@ -17,19 +17,24 @@
 """
 
 import numpy as np
+import logging
 
 class ManyToManyAssignment:
-       def __init__(self,taskRangeVector, agentVector, matrix) -> None:
+       def __init__(self):
+              self.taskRangeVector = None
+              self.agentVector = None
+              self.matrix = None
+              self.colored_columns = []
+              self.colored_rows = []
+              self.zeroStars = []
+              self.unavailable_list = []
+              self.prime_Z = []
+              self.unlcolored_zeros = []
+              
+       def many_to_many_assignment(self, taskRangeVector, agentVector, matrix)-> np.array:
               self.taskRangeVector = np.array(taskRangeVector)
               self.agentVector = np.array(agentVector)
               self.matrix = np.array(matrix)
-              self.colored_columns = np.array([])
-              self.colored_rows = np.array([])
-              self.zeroStars = {}
-              self.unavailable_dict = {}
-              self.prime_Z = {}
-              
-       def many_to_many_assignment(self)-> np.array:
               """
               Solving the Many to Many assignment problem by improving the Kuhn–Munkres algorithm with backtracking.
 
@@ -94,7 +99,105 @@ class ManyToManyAssignment:
                      [ 0,  1,  1,  0],
                      [ 0,  0,  1,  0]])
               """
-       pass
+              # Step 1: Preperation Stage
+              try:
+                     self.preperation_stage()
+              except ValueError as e:
+                     print(e)
+                     return
+              print(f'The matrix after the preperation stage:\n {self.matrix}')
+              # Step 2: Find the minimum value in each row and subtract it from each element in the row.
+                     #  Find the minimum value in each column and subtract it from each element in the column.
+              self.find_min_value_in_row_and_subtruct()
+              self.find_min_value_in_column_and_subtruct()
+              print(f'The matrix after the first step:\n {self.matrix}')
+
+              # Step 3: Find the first zero that is not 0*, mark it as 0* and mark the other 0 in the row and column as unavailable (if they exist).
+              self.find_zero_star()
+              print(f'0* values: {self.zeroStars}')
+              print(f'Unavailable values: {self.unavailable_list}')
+              is_all_colored = self.check_colored_columns()
+              if is_all_colored:
+                     print(f'Finished, going to step 7')
+                     return
+              print(f'Colored Columns: {self.colored_columns}')
+              print(f'Is all colored: {is_all_colored}')
+
+              # Step 4
+              self.find_uncolored_zeros()
+              while len(self.unlcolored_zeros) > 0:
+                     print(f'Uncolored zeros: {self.unlcolored_zeros}')
+                     break
+              print(f'No more uncolored zeros')
+
+       
+       def duplicate_row(self, row_index: tuple):
+              """
+              Duplicate a row in a matrix.
+
+              Parameters
+              ----------
+              `matrix`: The matrix to duplicate the row.
+              `row_index (i, j)`: i - the row to duplicate, j - the number of times to duplicate.
+
+              Returns
+              ----------
+              The matrix with the duplicated row.
+
+              Example 1:
+              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+              >>> duplicate_row(matrix, (1, 1))
+              array([[ 1,  2,  3],
+                     [ 4,  5,  6],
+                     [ 7,  8,  9],
+                     [ 4,  5,  6]])
+
+              Exampe 2:
+              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
+              >>> duplicate_row(matrix, (1, 1))
+              array([[ 49,  45,  39,  15,  16],
+                     [ 5,  30,  85,  22,  78],
+                     [ 61,  16,  71,  59,  20],
+                     [ 44,  79,  1,  48,  22],
+                     [ 5,  30,  85,  22,  78]])
+              """
+              row, num_duplications = row_index
+              row_to_duplicate = self.matrix[row]
+              duplicated_rows = np.tile(row_to_duplicate, (num_duplications - 1, 1))
+              self.matrix = np.vstack((self.matrix, duplicated_rows))
+       
+       def create_zeros_columns(self, columns_amount: int):
+              """
+              Duplicate a column filled with zeros in a matrix.
+
+              Parameters
+              ----------
+              `matrix`: The matrix to duplicate the column.
+              `columns_amount`: The number of columns to duplicate.
+
+              Returns
+              ----------
+              The matrix with the duplicated columns filled with zeros.
+
+              Example 1:
+              >>> matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+              >>> create_zeros_columns(matrix, 2)
+              array([[ 8,  6,  7,  9,  5,  0,  0],
+                     [ 6,  7,  8,  6,  7,  0,  0],
+                     [ 7,  8,  5,  6,  8,  0,  0],
+                     [ 7,  6,  9,  7,  5,  0,  0]])
+              
+              Example 2:
+              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
+              >>> create_zeros_columns(matrix, 1)
+              array([[ 49,  45,  39,  15,  16,  0],
+                     [ 5,  30,  85,  22,  78,  0],
+                     [ 61,  16,  71,  59,  20,  0],
+                     [ 44,  79,  1,  48,  22,  0]])
+              """
+              rows, _ = self.matrix.shape
+              zeros = np.zeros((rows, columns_amount))
+              self.matrix = np.hstack((self.matrix, zeros))
 
        def preperation_stage(self):
               """
@@ -126,13 +229,15 @@ class ManyToManyAssignment:
               >>> task_range_vector = np.array([1, 2, 1, 1, 1])
               >>> performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
               >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 8,  6,  7,  9,  5,  0,  0],
-                     [ 6,  7,  8,  6,  7,  0,  0],
-                     [ 7,  8,  5,  6,  8,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0],
-                     [ 8,  6,  7,  9,  5,  0,  0],
-                     [ 7,  8,  5,  6,  8,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0]])
+              array([[ 8,  6,  7,  9,  5,  0,  0,  0],
+                     [ 6,  7,  8,  6,  7,  0,  0,  0],
+                     [ 7,  8,  5,  6,  8,  0,  0,  0],
+                     [ 7,  6,  9,  7,  5,  0,  0,  0],
+                     [ 8,  6,  7,  9,  5,  0,  0,  0],
+                     [ 7,  8,  5,  6,  8,  0,  0,  0],
+                     [ 6,  7,  8,  6,  7,  0,  0,  0],
+                     [ 7,  6,  9,  7,  5,  0,  0,  0],
+                     [ 7,  6,  9,  7,  5,  0,  0,  0]])
               
               Example 3 (Failure): 
               >>> ability_agent_vector = np.array([2, 2, 1, 3])
@@ -141,70 +246,19 @@ class ManyToManyAssignment:
               >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
               ValueError: The Cordinality Constraint is not satisfied.
               """
-       pass
+              agent_sum = sum(self.agentVector)
+              task_sum = sum(self.taskRangeVector)
 
-       def duplicate_row(self, row_index: tuple):
-              """
-              Duplicate a row in a matrix.
-
-              Parameters
-              ----------
-              `matrix`: The matrix to duplicate the row.
-              `row_index (i, j)`: i - the row to duplicate, j - the number of times to duplicate.
-
-              Returns
-              ----------
-              The matrix with the duplicated row.
-
-              Example 1:
-              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-              >>> duplicate_row(matrix, (1, 1))
-              array([[ 1,  2,  3],
-                     [ 4,  5,  6],
-                     [ 7,  8,  9],
-                     [ 4,  5,  6]])
-
-              Exampe 2:
-              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> duplicate_row(matrix, (1, 1))
-              array([[ 49,  45,  39,  15,  16],
-                     [ 5,  30,  85,  22,  78],
-                     [ 61,  16,  71,  59,  20],
-                     [ 44,  79,  1,  48,  22],
-                     [ 5,  30,  85,  22,  78]])
-              """
-       pass
-
-       def create_zeros_columns(self, columns_amount: int):
-              """
-              Duplicate a column filled with zeros in a matrix.
-
-              Parameters
-              ----------
-              `matrix`: The matrix to duplicate the column.
-              `columns_amount`: The number of columns to duplicate.
-
-              Returns
-              ----------
-              The matrix with the duplicated columns filled with zeros.
-
-              Example 1:
-              >>> matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-              >>> create_zeros_columns(matrix, 2)
-              array([[ 8,  6,  7,  9,  5,  0,  0],
-                     [ 6,  7,  8,  6,  7,  0,  0],
-                     [ 7,  8,  5,  6,  8,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0]])
+              for i in range(len(self.agentVector)):
+                     if self.agentVector[i] > 1:
+                            self.duplicate_row((i, self.agentVector[i]))
+              if agent_sum < task_sum:
+                     raise ValueError("The Cordinality Constraint is not satisfied.")
+              print(f'\nThe Cordinality Constraint is satisfied with the values: {agent_sum} > {task_sum}\n')
               
-              Example 2:
-              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> create_zeros_columns(matrix, 1)
-              array([[ 49,  45,  39,  15,  16,  0],
-                     [ 5,  30,  85,  22,  78,  0],
-                     [ 61,  16,  71,  59,  20,  0],
-                     [ 44,  79,  1,  48,  22,  0]])
-              """
-              pass
+              rows, columns = self.matrix.shape
+              if rows > columns:
+                     self.create_zeros_columns(rows - columns)
 
        def find_min_value_in_row_and_subtruct(self):
               """
@@ -233,7 +287,9 @@ class ManyToManyAssignment:
                      [ 41,  0,  55,  43,  4],
                      [ 43,  78,  0,  47,  21]])
               """
-       pass
+              for i in range(self.matrix.shape[0]):
+                     min_value = np.min(self.matrix[i])
+                     self.matrix[i] -= min_value
 
        def find_min_value_in_column_and_subtruct(self):
               """
@@ -261,7 +317,9 @@ class ManyToManyAssignment:
                      [ 0,  0,  0],
                      [ 0,  0,  0]])
               """
-       pass
+              for i in range(self.matrix.shape[1]):
+                     min_value = np.min(self.matrix[:, i])
+                     self.matrix[:, i] -= min_value
 
        def find_zero_star(self):
               """
@@ -289,7 +347,13 @@ class ManyToManyAssignment:
               >>> find_zero_star(matrix, unavailable_dict)
               (array([[0*, 1, 2], [0, 1, 2], [0, 1, 2]]), {0: (1, 0), 1: (2, 0)})
               """
-       pass
+              for i in range(self.matrix.shape[0]):
+                     for j in range(self.matrix.shape[1]):
+                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_list:
+                                   self.zeroStars.append((i, j))
+                                   self.colored_columns.append(j)
+                                   self.mark_unavailable_zeros(i, j)
+                                   break
 
        def color_row(self):
               """
@@ -314,9 +378,9 @@ class ManyToManyAssignment:
               >>> color_row(matrix, prime_z, colored_columns)
               (array([ True, False, False]), array([False, False, False]))
               """
-       pass
+              pass
 
-       def mark_unavailable_zeros(self):
+       def mark_unavailable_zeros(self, row: int, column: int):
               """
               Find a zero in the matrix that is not 0* and mark it as unavailable.
 
@@ -341,7 +405,12 @@ class ManyToManyAssignment:
               >>> mark_unavailable_zeros(matrix)
               {0: (1, 0), 1: (2, 0)}
               """
-       pass
+              for i in range(self.matrix.shape[0]):
+                     if self.matrix[i, column] == 0 and (i, column) not in self.zeroStars:
+                            self.unavailable_list.append((i, column))
+              for j in range(self.matrix.shape[1]):
+                     if self.matrix[row, j] == 0 and (row, j) not in self.zeroStars:
+                            self.unavailable_list.append((row, j))
 
        def save_smallest_value(self):
               """
@@ -374,7 +443,7 @@ class ManyToManyAssignment:
               >>> save_smallest_value(matrix, colored_rows, colored_columns, unavailable_dict)
               2
               """
-       pass
+              pass
 
        def add_h_to_colored_row_elements(self):
               """
@@ -399,7 +468,7 @@ class ManyToManyAssignment:
                      [4, 5, 6],
                      [7, 8, 9]])
               """
-       pass
+              pass
 
        def substract_h_from_uncolored_columns(self):
               """
@@ -424,8 +493,57 @@ class ManyToManyAssignment:
                      [2,  5,  4],
                      [5,  8,  7]])
               """
-       pass
+              pass
+
+       def check_colored_columns(self) -> bool:
+              """
+              Check if all the columns are colored.
+
+              Parameters
+              ----------
+              `colored_columns`: Vector containing True / False values at each index, which is colored / not colored.
+
+              Returns
+              ----------
+              True if all the columns are colored, otherwise False.
+
+              Example 1:
+              >>> colored_columns = np.array([True, True, True])
+              >>> check_colored_columns(colored_columns)
+              True
+
+              Example 2:
+              >>> colored_columns = np.array([True, False, True])
+              >>> check_colored_columns(colored_columns)
+              False
+              """
+              for i in range(self.matrix.shape[1]):
+                     if not self.colored_columns[i]:
+                            return False
+              return True
+
+       def find_uncolored_zeros(self):
+              for i in range(self.matrix.shape[0]):
+                     for j in range(self.matrix.shape[1]):
+                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_list:
+                                   self.unlcolored_zeros.append((i, j))
+              
 
 if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+       """
+       Example 1
+       """
+       ability_agent_vector = np.array([1, 2, 1, 1])
+       task_range_vector = np.array([1, 1, 1, 1, 1])
+       performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
+       object = ManyToManyAssignment()
+       object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
+
+       """
+       Example 2
+       """
+       # ability_agent_vector = np.array([2, 2, 1, 3])
+       # task_range_vector = np.array([1, 2, 1, 1, 1])
+       # performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+       # object = ManyToManyAssignment()
+       # object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
