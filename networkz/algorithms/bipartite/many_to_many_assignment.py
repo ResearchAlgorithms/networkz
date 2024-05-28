@@ -103,32 +103,32 @@ class ManyToManyAssignment:
               try:
                      self.preperation_stage()
               except ValueError as e:
-                     print(e)
+                     logging.warning(e)
                      return
-              print(f'The matrix after the preperation stage:\n {self.matrix}')
+              logging.info(f'The matrix after the preperation stage:\n {self.matrix}')
               # Step 2: Find the minimum value in each row and subtract it from each element in the row.
                      #  Find the minimum value in each column and subtract it from each element in the column.
               self.find_min_value_in_row_and_subtruct()
               self.find_min_value_in_column_and_subtruct()
-              print(f'The matrix after the first step:\n {self.matrix}')
+              logging.info(f'The matrix after the first step:\n {self.matrix}')
 
               # Step 3: Find the first zero that is not 0*, mark it as 0* and mark the other 0 in the row and column as unavailable (if they exist).
               self.find_zero_star()
-              print(f'0* values: {self.zeroStars}')
-              print(f'Unavailable values: {self.unavailable_list}')
+              logging.info(f'0* values: {self.zeroStars}')
+              logging.info(f'Unavailable values: {self.unavailable_list}')
               is_all_colored = self.check_colored_columns()
               if is_all_colored:
-                     print(f'Finished, going to step 7')
+                     logging.info(f'Finished, going to step 7')
                      return
-              print(f'Colored Columns: {self.colored_columns}')
-              print(f'Is all colored: {is_all_colored}')
+              logging.info(f'Colored Columns: {self.colored_columns}')
+              logging.info(f'Is all colored: {is_all_colored}')
 
               # Step 4
               self.find_uncolored_zeros()
               while len(self.unlcolored_zeros) > 0:
                      print(f'Uncolored zeros: {self.unlcolored_zeros}')
                      break
-              print(f'No more uncolored zeros')
+              logging.info(f'No more uncolored zeros')
 
        
        def duplicate_row(self, row_index: tuple):
@@ -253,8 +253,10 @@ class ManyToManyAssignment:
                      if self.agentVector[i] > 1:
                             self.duplicate_row((i, self.agentVector[i]))
               if agent_sum < task_sum:
-                     raise ValueError("The Cordinality Constraint is not satisfied.")
-              print(f'\nThe Cordinality Constraint is satisfied with the values: {agent_sum} > {task_sum}\n')
+                     warning_message = "The Cordinality Constraint is not satisfied."
+                     logging.warning(warning_message)
+                     raise ValueError(warning_message)
+              logging.info(f'\nThe Cordinality Constraint is satisfied with the values: {agent_sum} > {task_sum}\n')
               
               rows, columns = self.matrix.shape
               if rows > columns:
@@ -533,6 +535,7 @@ if __name__ == "__main__":
        """
        Example 1
        """
+       logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
        ability_agent_vector = np.array([1, 2, 1, 1])
        task_range_vector = np.array([1, 1, 1, 1, 1])
        performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
