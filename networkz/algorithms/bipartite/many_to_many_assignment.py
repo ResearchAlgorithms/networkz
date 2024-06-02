@@ -16,6 +16,7 @@
        Date: 2024-05-16.
 """
 
+import math
 import numpy as np
 import logging
 
@@ -27,17 +28,15 @@ class ManyToManyAssignment:
               self.colored_columns = []
               self.colored_rows = []
               self.zeroStars = []
-              self.unavailable_list = []
+              self.unavailable_zeros = []
               self.prime_z = []
               self.unlcolored_zeros = []
               self.Z_0 = []
               self.Z_1 = []
               self.Z_2 = []
+              self.min_value = None
               
        def many_to_many_assignment(self, taskRangeVector, agentVector, matrix)-> np.array:
-              self.taskRangeVector = np.array(taskRangeVector)
-              self.agentVector = np.array(agentVector)
-              self.matrix = np.array(matrix)
               """
               Solving the Many to Many assignment problem by improving the Kuhn–Munkres algorithm with backtracking.
 
@@ -102,56 +101,88 @@ class ManyToManyAssignment:
                      [ 0,  1,  1,  0],
                      [ 0,  0,  1,  0]])
               """
+              self.taskRangeVector = np.array(taskRangeVector)
+              self.agentVector = np.array(agentVector)
+              self.matrix = np.array(matrix)
               # Step 1: Preperation Stage
               try:
                      self.preperation_stage()
               except ValueError as e:
                      logging.warning(e)
                      return
-              logging.info(f'The matrix after the preperation stage:\n {self.matrix}')
+              logging.info(f'The matrix after Step 1:\n {self.matrix}')
               # Step 2: Find the minimum value in each row and subtract it from each element in the row.
                      #  Find the minimum value in each column and subtract it from each element in the column.
               self.find_min_value_in_row_and_subtruct()
               self.find_min_value_in_column_and_subtruct()
-              logging.info(f'The matrix after the first step:\n {self.matrix}')
-
-              # Step 3: Find the first zero that is not 0*, mark it as 0* and mark the other 0 in the row and column as unavailable (if they exist).
+              logging.info(f'The matrix after the first step:\n {self.matrix}\n')
               self.find_zero_star()
-              logging.info(f'0* values: {self.zeroStars}')
-              logging.info(f'Unavailable values: {self.unavailable_list}')
-              is_all_colored = self.check_colored_columns()
-              if is_all_colored:
-                     logging.info(f'Finished, going to step 7')
-                     return
-              logging.info(f'Colored Columns: {self.colored_columns}')
-              logging.info(f'Colored Rows: {self.colored_rows}')
-              logging.info(f'Is all colored: {is_all_colored}')
+              logging.info(f'The zero stars: {self.zeroStars}.\nStart of the main while loop.\n')
+              # Main loop
+              while True:
+                     if self.check_colored_columns():
+                            self.construct_final_solution()
+                            return
+                     # Inner loop
+                     while not self.check_colored_columns():
+                            self.find_uncolored_zeros()
+                            for row, column in self.unlcolored_zeros:
+                                   if (row, column) not in self.prime_z:
+                                          self.prime_z.append((row, column))
+                                          self.mark_unavailable_zeros(row, column)
+                                          for zero_star in self.zeroStars:
+                                                 if zero_star[0] == row and row not in self.colored_rows:
+                                                        self.colored_rows.append(row)
+                                                        if zero_star[1] in self.colored_columns:
+                                                               self.colored_columns.remove(zero_star[1])
+                                                        break
+                                   else:
+                                          # while column in [zero_star[1] for zero_star in self.zeroStars]:
+                                          for i, j in self.prime_z:
+                                                 if j in [zero_star[1] for zero_star in self.zeroStars]:
+                                                        # Create Z_0: all 0 in prime_z and in uncolored_zeros
+                                                        if (i, j) in self.unlcolored_zeros and (i, j) not in self.Z_0:
+                                                               self.Z_0.append((i, j))
+                                                        # Create Z_1: all 0 in zero_star group and in columns of Z_0
+                                                        for k, m in self.zeroStars:
+                                                               if m in [z_0[1] for z_0 in self.Z_0] and (k, m) not in self.Z_1:
+                                                                      self.Z_1.append((k, m))
+                                                        # Create Z_2: all 0 in prime_z and in rows of Z_1
+                                                        for r, t in self.prime_z:
+                                                               if r in [z_1[0] for z_1 in self.Z_1] and (r, t) not in self.Z_2:
+                                                                      self.Z_2.append((r, t))
+                                          # Unstar all 0* that is in Z_0, Z_1, Z_2 (if exist)
+                                          temp_backtracking = []
+                                          for row, column in self.zeroStars:
+                                                 if (row, column) in self.Z_0 or (row, column) in self.Z_1 or (row, column) in self.Z_2:
+                                                        temp_backtracking.append((row, column))
+                                                        self.zeroStars.remove((row, column))
+                                          # Star all 0 that in prime_Z and in Z_0, Z_1, Z_2
+                                          for row, column in self.prime_z:
+                                                 if (row, column) in self.Z_0 or (row, column) in self.Z_1 or (row, column) in self.Z_2:
+                                                        self.zeroStars.append((row, column))
 
-              # Step 4: For all uncolored zeros, find one and add him to prime_z group.
-              #         Mark the other zeros in the same row/column as unavailable (except the 0*).
-              self.find_uncolored_zeros()
-              while len(self.unlcolored_zeros) > 0:
-                     print(f'Uncolored zeros: {self.unlcolored_zeros}')
-                     # If there a 0* in the same row of 0 that is in prime_z group, color the row and uncolor the column from the column of 0*.
-                     for zero in self.unlcolored_zeros:
-                            row, column = zero
-                            if row in self.prime_z:
-                                   self.colored_rows.append(row)
-                                   self.colored_columns[column].remove(column)
-                                   break
-                            else:
-                                   self.process_prime_z()
-                     break
-              logging.info(f'No more uncolored zeros')
+                                          # Clean up prime_z and clean up colored_rows
+                                          self.prime_z = []
+                                          self.colored_rows = []
 
-              # Save the smallest value in the matrix (without unavailable values) such that his row or column is not colored.
-              min_value = self.save_smallest_value()
-              logging.info(f'Min value: {min_value}')
-              # Step 6: Add the value h to each colored row.
-              #         Substract the value h from each uncolored column.
-              self.add_h_to_colored_row_elements(min_value)
-              self.substract_h_from_uncolored_columns(min_value)
-              logging.info(f'The matrix after Step 6:\n {self.matrix}')
+                                          # Backtracking: Adjust unavailable elements to be available according to the erased stared zeros
+                                          # According to the erased starred and primed zeros.
+                                          for row, column in temp_backtracking:
+                                                 for i, j in self.unavailable_zeros:
+                                                        if i == row or j == column:
+                                                               self.unavailable_zeros.remove((i, j))
+                                          self.step_3_func()
+                                   # End if loop
+                            # End for non covered zero loop
+                            self.save_smallest_value()
+                            self.add_h_to_colored_row_elements(self.min_value)
+                            self.substract_h_from_uncolored_columns(self.min_value)
+                     # End of while inner loop
+              # End of while main loop
+              # End of the Algorithm
+
+
 
        
        def duplicate_row(self, row_index: tuple):
@@ -225,49 +256,6 @@ class ManyToManyAssignment:
        def preperation_stage(self):
               """
               Preperation stage of the Matrix, and Cardinality Constraint detection.
-
-              Parameters
-              ----------
-              `ability_agent_vector`: Vector of the abilities of the agents
-              `task_range_vector`: Vector of the task ranges
-              `performance_matrix`: Matrix of the performance of the agents on the tasks
-
-              Returns
-              ----------
-              Matrix of the preperation stage
-
-              Example 1: 
-              >>> ability_agent_vector = np.array([1, 2, 1, 1])
-              >>> task_range_vector = np.array([1, 1, 1, 1, 1])
-              >>> performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 49,  45,  39,  15,  16],
-                     [ 5,  30,  85,  22,  78],
-                     [ 61,  16,  71,  59,  20],
-                     [ 44,  79,  1,  48,  22],
-                     [ 5,  30,  85,  22,  78]])
-              
-              Example 2: 
-              >>> ability_agent_vector = np.array([2, 2, 1, 3])
-              >>> task_range_vector = np.array([1, 2, 1, 1, 1])
-              >>> performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 8,  6,  7,  9,  5,  0,  0,  0],
-                     [ 6,  7,  8,  6,  7,  0,  0,  0],
-                     [ 7,  8,  5,  6,  8,  0,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0,  0],
-                     [ 8,  6,  7,  9,  5,  0,  0,  0],
-                     [ 7,  8,  5,  6,  8,  0,  0,  0],
-                     [ 6,  7,  8,  6,  7,  0,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0,  0]])
-              
-              Example 3 (Failure): 
-              >>> ability_agent_vector = np.array([2, 2, 1, 3])
-              >>> task_range_vector = np.array([1, 2, 3, 1, 1])
-              >>> performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              ValueError: The Cordinality Constraint is not satisfied.
               """
               agent_sum = sum(self.agentVector)
               task_sum = sum(self.taskRangeVector)
@@ -350,60 +338,14 @@ class ManyToManyAssignment:
               """
               Traverse the matrix and find the first zero that is not 0*.
               Mark him as 0* and mark the other 0 in the row and column as unavailable (if they exist).
-
-              Parameters
-              ----------
-              `matrix`: The matrix to find the first zero that is not 0*.
-              `unavailable_dict`: The dictionary of the unavailable zeros.
-
-              Returns
-              ----------
-              The matrix with after marking 0* and the unavailable zeros.
-
-              Example 1:
-              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-              >>> unavailable_dict = {}
-              >>> find_zero_star(matrix, unavailable_dict)
-              (array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]), {})
-
-              Example 2:
-              >>> matrix = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]])
-              >>> unavailable_dict = {}
-              >>> find_zero_star(matrix, unavailable_dict)
-              (array([[0*, 1, 2], [0, 1, 2], [0, 1, 2]]), {0: (1, 0), 1: (2, 0)})
               """
               for i in range(self.matrix.shape[0]):
                      for j in range(self.matrix.shape[1]):
-                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_list:
+                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_zeros:
                                    self.zeroStars.append((i, j))
                                    self.colored_columns.append(j)
                                    self.mark_unavailable_zeros(i, j)
                                    break
-
-       def color_row(self):
-              """
-              Color the rows of the matrix based on the condition:
-              If there is 0* in the row of 0 in Prime_z then color the row and remove the color from the column of the 0*.
-
-              Parameters
-              ----------
-              `matrix`: The matrix to color the rows.
-              `prime_z`: Dictionary containing 0 values and their indexes.
-              `colored_columns`: Vector containing True / False values at each index, which is colored / not colored for each column.
-
-              Returns
-              ----------
-              Tuple of Vectors containing True / False values at each index, which is colored / not colored.
-              First vector is the rows which is colored, and the second vector is the columns from which the color is removed.
-
-              Example 1:
-              >>> matrix = np.array([[0, 0*, 3], [4, 5, 6], [7, 8, 9]])
-              >>> prime_z = {0: (0, 0)}
-              >>> colored_columns = np.array([False, True, False])
-              >>> color_row(matrix, prime_z, colored_columns)
-              (array([ True, False, False]), array([False, False, False]))
-              """
-              pass
 
        def mark_unavailable_zeros(self, row: int, column: int):
               """
@@ -430,96 +372,92 @@ class ManyToManyAssignment:
               >>> mark_unavailable_zeros(matrix)
               {0: (1, 0), 1: (2, 0)}
               """
-              for i in range(self.matrix.shape[0]):
-                     if self.matrix[i, column] == 0 and (i, column) not in self.zeroStars and (i, column) not in self.unavailable_list:
-                            self.unavailable_list.append((i, column))
-              for j in range(self.matrix.shape[1]):
-                     if self.matrix[row, j] == 0 and (row, j) not in self.zeroStars and (row, j) not in self.unavailable_list:
-                            self.unavailable_list.append((row, j))
+              for index_col in range(self.matrix.shape[1]):
+                     if self.matrix[row, index_col] == 0 and (row, index_col) not in self.zeroStars and (row, index_col) not in self.unavailable_zeros and (row, index_col) not in self.prime_z:
+                            self.unavailable_zeros.append((row, index_col))
+              for index_row in range(self.matrix.shape[0]):
+                     if self.matrix[index_row, column] == 0 and (index_row, column) not in self.zeroStars and (index_row, column) not in self.unavailable_zeros and (index_row, column) not in self.prime_z:
+                            self.unavailable_zeros.append((index_row, column))
 
        def save_smallest_value(self) -> float | None:
               """
               Save the smallest value in the matrix (without unavailable values) such that his row or column is not colored.
               """
-              min_value = None
+              self.min_value = math.inf
               for i in range(self.matrix.shape[0]):
                      for j in range(self.matrix.shape[1]):
-                            if (i, j) not in self.unavailable_list and i not in self.colored_rows and j not in self.colored_columns:
-                                   if min_value is None or self.matrix[i,j] < min_value:
-                                          min_value = self.matrix[i,j]
-              
-              if min_value is not None:
-                     logging.info(f'The smallest available value is: {min_value}')
-              else:
-                     logging.warning(f'There is no available value to save')
-              return min_value
+                            if (i, j) not in self.unavailable_zeros and i not in self.colored_rows and j not in self.colored_columns and (i, j) not in self.zeroStars:
+                                   if self.matrix[i,j] < self.min_value:
+                                          self.min_value = self.matrix[i,j]
 
        def add_h_to_colored_row_elements(self, h: float):
               """
               Add the value h to each element in the row that is colored.
               """
-              for i in self.colored_rows:
-                     self.matrix[i, :] += h
+              for row in range(self.matrix.shape[0]):
+                     for column in range(self.matrix.shape[1]):
+                            if row in self.colored_rows and (row, column) not in self.unavailable_zeros and (row, column) not in self.zeroStars:
+                                   self.matrix[row, column] += h
 
        def substract_h_from_uncolored_columns(self, h: float) -> None:
               """
               Substract the value h from each element in the column that is not colored.
               """
-              for i in self.colored_columns:
-                     self.matrix[:, i] -= h
+              for row in range(self.matrix.shape[0]):
+                     for column in range(self.matrix.shape[1]):
+                            if column not in self.colored_columns and (row, column) not in self.unavailable_zeros and (row, column) not in self.zeroStars:
+                                   self.matrix[row, column] -= h
 
        def check_colored_columns(self) -> bool:
               """
               Check if all the columns are colored.
               """
-              for i in range(self.matrix.shape[1]):
-                     if not self.colored_columns[i]:
-                            return False
-              return True
+              if len(self.colored_columns) == len(self.matrix):
+                     return True
+              return False
 
        def find_uncolored_zeros(self):
+              self.unlcolored_zeros = []
               for i in range(self.matrix.shape[0]):
                      for j in range(self.matrix.shape[1]):
-                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_list:
-                                   self.unlcolored_zeros.append((i, j))
-                                   self.prime_z.append((i, j))
-                                   self.mark_unavailable_zeros(i, j)
-              
-       def process_prime_z(self):
-              while len(self.prime_z) > 0:
-                     # Fine a zero in prime_z that does not have a 0* in its column
-                     for (i, j) in self.prime_z:
-                            if not any((x, j) in self.zeroStars for x in range(self.matrix.shape[0])):
-                                   self.Z_0 = [(i, j) for (i, j) in self.prime_z if not self.colored_rows[i] and not self.colored_columns[j]]
-                                   self.Z_1 = [(x, y) for (i, j) in self.Z_0 for (x, y) in self.zeroStars if y == j]
-                                   self.Z_2 = [(i, j) for (x, y) in self.Z_1 for (i, j) in self.prime_z if i == x]
-                                   logging.info(f'Z_0: {self.Z_0}')
-                                   logging.info(f'Z_1: {self.Z_1}')
-                                   logging.info(f'Z_2: {self.Z_2}')
-                                   break
-                            else:
-                                   break
-                     Z_all = set(self.Z_0) | set(self.Z_1) | set(self.Z_2)
-                     self.zeroStars = [z for z in self.zeroStars if z not in Z_all]
-                     logging.info(f'Zero Stars: {self.zeroStars}')
+                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_zeros:
+                                   if i not in self.colored_rows and j not in self.colored_columns:
+                                          self.unlcolored_zeros.append((i, j))
 
+       def step_3_func(self):
+              for _, column in self.zeroStars:
+                     if column not in self.colored_columns:
+                            self.colored_columns.append(column)
+              if self.check_colored_columns():
+                     self.construct_final_solution()
+
+       def construct_final_solution(self):
+              """
+              Construct the final solution of the assignment as a matrix of 0 and 1 containing the starred zeros.
+              """
+              final_solution = np.zeros(self.matrix.shape, dtype=int)
+              for i, j in self.zeroStars:
+                     final_solution[i, j] = 1
+                     logging.info(f'The agent: {i} is assigned to the task: {j}\n')
+              logging.info(f'The final solution is:\n {final_solution}')
+              return final_solution
 
 if __name__ == "__main__":
        """
        Example 1
        """
        logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
-       ability_agent_vector = np.array([1, 2, 1, 1])
-       task_range_vector = np.array([1, 1, 1, 1, 1])
-       performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-       object = ManyToManyAssignment()
-       object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
+       # ability_agent_vector = np.array([1, 2, 1, 1])
+       # task_range_vector = np.array([1, 1, 1, 1, 1])
+       # performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
+       # object = ManyToManyAssignment()
+       # object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
 
        """
        Example 2
        """
-       # ability_agent_vector = np.array([2, 2, 1, 3])
-       # task_range_vector = np.array([1, 2, 1, 1, 1])
-       # performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-       # object = ManyToManyAssignment()
-       # object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
+       ability_agent_vector = np.array([2, 2, 1, 3])
+       task_range_vector = np.array([1, 2, 1, 1, 1])
+       performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+       object = ManyToManyAssignment()
+       object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
