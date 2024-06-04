@@ -2,22 +2,143 @@
 	An implementation of the algorithms in:
  
 	"Solving the Many to Many assignment problem by improving
-       the Kuhn–Munkres algorithm with backtracking", by:
-       Haibin Zhu, 
-       Dongning Liu,
-       Siqin Zhang,
-       Yu Zhu,
-       Luyao Teng,
-       Shaohua Teng.
+    the Kuhn–Munkres algorithm with backtracking".
 
-       https://www.sciencedirect.com/science/article/pii/S0304397516000037
+    Authors: Haibin Zhu, Dongning Liu, Siqin Zhang, Yu Zhu, Luyao Teng, and Shaohua Teng.
 
-       Programmers: Tom Shabalin and Dor Harizi.
-       Date: 2024-05-16.
+    https://www.sciencedirect.com/science/article/pii/S0304397516000037
+
+    Programmers: Tom Shabalin and Dor Harizi.
+    Date: 2024-05-16.
 """
 
 import numpy as np
 import logging
+
+class ManyToManyAssignment:
+        """
+        Class to represent the Many to Many Assignment Problem.
+        """
+        def __init__(self, matrix: np.asarray, taskRangeVector: np.asarray, agentVector: np.asarray) -> None:
+            self.matrix = matrix.copy()
+            self.taskRangeVector = taskRangeVector.copy()
+            self.agentVector = agentVector.copy()
+            self.agents = self.matrix.shape[0]
+            self.tasks = self.matrix.shape[1]
+            self.preperation_stage()
+            self.k = self.matrix.shape[0]
+            
+            # New matrix with size (kxk)
+            self.available = np.ones((self.k,self.k), dtype=bool)
+            # The uncovered rows vector
+            self.uncolored_rows = np.ones(self.k, dtype=bool)
+            # The uncovered columns vector
+            self.uncolored_columns = np.ones(self.k, dtype=bool)
+            self.final_solution = np.zeros((self.k, self.k), dtype=int)
+            # Row index of the initial uncovered primed zero
+            self.initial_primed_zero_row = 0
+            # Column index of the initial uncovered primed zero
+            self.initial_primed_zero_column = 0
+            # Path to construct alternating series of primed and starred zeros
+            self.path = np.zeros((2 * self.k, 2), dtype=int)
+
+        def uncolor_rows_columns(self) -> None:
+            """
+            Uncolor the rows and columns of the matrix.
+            """
+            self.uncolored_rows[:] = True
+            self.uncolored_columns[:] = True
+
+        def preperation_stage(self):
+            """
+            Preperation stage of the Matrix.
+            """
+            # Check cordinality constraints
+            agent_sum = sum(self.agentVector)
+            task_sum = sum(self.taskRangeVector)
+            if agent_sum < task_sum:
+                    warning_message = f"The Cordinality Constraint is not satisfied, with agents summing to {agent_sum} and tasks summing to {task_sum}."
+                    logging.warning(warning_message)
+                    raise ValueError(warning_message)
+
+            # Duplicate Columns: Ensures each task can appear multiple times.
+            self.matrix = np.repeat(self.matrix, self.taskRangeVector, axis=1)
+            # Duplicate Rows: Ensures each agent can handle multiple tasks.
+            self.matrix = np.repeat(self.matrix, self.agentVector, axis=0)
+            # Create Additional Columns: Ensures the matrix is square and prevents selection of these columns by assigning high costs.
+            zero_columns = np.ones((self.matrix.shape[0], self.matrix.shape[0] - self.matrix.shape[1]), dtype=int) * (np.max(self.matrix) * 2)
+            # Combine Matrices: Forms the final expanded and square matrix suitable for the assignment algorithm.
+            self.matrix = np.hstack((self.matrix, zero_columns))
+
+            self.find_agent_in_row = range(self.tasks)
+            self.find_task_in_col = range(self.agents)
+
+            self.find_agent_in_row = np.repeat(self.find_agent_in_row, self.agentVector)
+            self.find_task_in_col = np.repeat(self.find_task_in_col, self.taskRangeVector)
+
+            self.task_columns = {}
+            self.agent_rows = {}
+
+            self.agent_rows = [np.where(self.find_agent_in_row == i) for i in range(len(self.agentVector))]
+            self.task_columns = [np.where(self.find_task_in_col == j) for j in range(len(self.taskRangeVector))]
+
+        def set_as_unavailable(self, row: int, col: int) -> None:
+            """
+            Mark the cells in the `available` matrix as unavailable, ensuring that the same agent cannot be assigned to the same task more than once.
+
+            Parameters:
+            ---------
+            - `row` - row of agent
+            - `col` - column of task
+            """
+            if col < len(self.find_task_in_col):
+                # Get the agent and task indices
+                agent = self.find_agent_in_row[row]
+                task = self.find_task_in_col[col]
+                # Get the related rows and columns, excluding the current row and columns
+                related_rows = self.agent_rows[agent]
+                related_columns = self.task_columns[task]
+                # Remove the current row and column from the related rows and columns
+                related_rows = np.delete(self.agent_rows[agent], np.where(self.agent_rows[agent] == row)[1])
+                related_columns = np.delete(self.task_columns[task], np.where(self.task_columns[task] == col)[1])
+                # Mark the corresponding cells as unavailable if they are not starred (1 represents a starred zero in the final solution matrix)
+                for i in related_rows:
+                    for j in related_columns:
+                        if self.final_solution[i, j] != 1:
+                            self.available[i,j] = False
+            
+        def set_as_available(self, row: int, col: int) -> None:
+            """
+            Update the available matrix to mark the cells as available.
+
+            Parameters:
+            ---------
+            - `row`: The row index of the agent.
+            - `col`: The column index of the task.
+            """
+            if col < len(self.find_task_in_col):
+                # Get the agent and task indices
+                agent = self.find_agent_in_row[row]
+                task = self.find_task_in_col[col]
+                # Get the rows and columns related to the agent and task
+                related_rows = self.agent_rows[agent]
+                related_cols = self.task_columns[task]
+                # Mark the corresponding cells as available
+                start_row, end_row = related_rows[0][0], related_rows[0][-1]
+                start_col, end_col = related_cols[0][0], related_cols[0][-1]
+                self.available[start_row: end_row + 1, start_col: end_col + 1] = True
+
+        def find_star_zero(self, row: int, column: int) -> None:
+            """
+            Finds and marks the zero in the matrix as a 0*.
+
+            Parameters:
+            ---------
+            - `row`: The row index of the agent.
+            - `column`: The column index of the task.
+            """
+            self.final_solution[row, column] = 1
+            self.set_as_unavailable(row, column)
 
 def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskRangeVector: np.asarray) -> dict:
     """
@@ -87,9 +208,9 @@ def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskR
     # Create the dictionary for assignments
     assignment_dict = {}
     for agent_index, task_index in zip(assignments[0], assignments[1]):
-        original_agent = next_state.agent_row_lookup[agent_index]
+        original_agent = next_state.find_agent_in_row[agent_index]
         if task_index < taskRangeVector.sum():
-            original_task = next_state.task_column_lookup[task_index]
+            original_task = next_state.find_task_in_col[task_index]
         else:
             original_task = -1
         
@@ -419,139 +540,10 @@ def step_6_func(state):
 
     return step_4_func
 
-class ManyToManyAssignment:
-        """
-        Class to represent the Many to Many Assignment Problem.
-        """
-        def __init__(self, matrix: np.asarray, taskRangeVector: np.asarray, agentVector: np.asarray) -> None:
-            self.matrix = matrix.copy()
-            self.taskRangeVector = taskRangeVector.copy()
-            self.agentVector = agentVector.copy()
-            self.agents = self.matrix.shape[0]
-            self.tasks = self.matrix.shape[1]
-            self.preperation_stage()
-            self.k = self.matrix.shape[0]
-            
-            # New matrix with size (kxk)
-            self.available = np.ones((self.k,self.k), dtype=bool)
-            # The uncovered rows vector
-            self.uncolored_rows = np.ones(self.k, dtype=bool)
-            # The uncovered columns vector
-            self.uncolored_columns = np.ones(self.k, dtype=bool)
-            self.final_solution = np.zeros((self.k, self.k), dtype=int)
-            # Row index of the initial uncovered primed zero
-            self.initial_primed_zero_row = 0
-            # Column index of the initial uncovered primed zero
-            self.initial_primed_zero_column = 0
-            # Path to construct alternating series of primed and starred zeros
-            self.path = np.zeros((2 * self.k, 2), dtype=int)
-
-        def uncolor_rows_columns(self) -> None:
-            """
-            Uncolor the rows and columns of the matrix.
-            """
-            self.uncolored_rows[:] = True
-            self.uncolored_columns[:] = True
-
-        def preperation_stage(self):
-            """
-            Preperation stage of the Matrix.
-            """
-            # Check cordinality constraints
-            agent_sum = sum(self.agentVector)
-            task_sum = sum(self.taskRangeVector)
-            if agent_sum < task_sum:
-                    warning_message = f"The Cordinality Constraint is not satisfied, with agents summing to {agent_sum} and tasks summing to {task_sum}."
-                    logging.warning(warning_message)
-                    raise ValueError(warning_message)
-
-            # Duplicate Columns: Ensures each task can appear multiple times.
-            self.matrix = np.repeat(self.matrix, self.taskRangeVector, axis=1)
-            # Duplicate Rows: Ensures each agent can handle multiple tasks.
-            self.matrix = np.repeat(self.matrix, self.agentVector, axis=0)
-            # Create Additional Columns: Ensures the matrix is square and prevents selection of these columns by assigning high costs.
-            zero_columns = np.ones((self.matrix.shape[0], self.matrix.shape[0] - self.matrix.shape[1]), dtype=int) * (np.max(self.matrix) * 2)
-            # Combine Matrices: Forms the final expanded and square matrix suitable for the assignment algorithm.
-            self.matrix = np.hstack((self.matrix, zero_columns))
-
-            self.agent_row_lookup = range(self.tasks)
-            self.task_column_lookup = range(self.agents)
-
-            self.agent_row_lookup = np.repeat(self.agent_row_lookup,self.agentVector)
-            self.task_column_lookup = np.repeat(self.task_column_lookup,self.taskRangeVector)
-
-            self.task_columns = {}
-            self.agent_rows = {}
-
-            for i,_ in enumerate(self.agentVector): 
-                self.agent_rows[i] = np.where(self.agent_row_lookup == i)
-            for j,_ in enumerate(self.taskRangeVector):
-                self.task_columns[j] = np.where(self.task_column_lookup == j)
-
-        def set_as_unavailable(self, row: int, col: int) -> None:
-            """
-            Mark the cells in the `available` matrix as unavailable, ensuring that the same agent cannot be assigned to the same task more than once.
-
-            Parameters:
-            ---------
-            - `row` - row of agent
-            - `col` - column of task
-            """
-            if col < len(self.task_column_lookup):
-                # Get the agent and task indices
-                agent = self.agent_row_lookup[row]
-                task = self.task_column_lookup[col]
-                # Get the related rows and columns, excluding the current row and columns
-                related_rows = self.agent_rows[agent]
-                related_columns = self.task_columns[task]
-                # Remove the current row and column from the related rows and columns
-                related_rows = np.delete(self.agent_rows[agent], np.where(self.agent_rows[agent] == row)[1])
-                related_columns = np.delete(self.task_columns[task], np.where(self.task_columns[task] == col)[1])
-                # Mark the corresponding cells as unavailable if they are not starred (1 represents a starred zero in the final solution matrix)
-                for i in related_rows:
-                    for j in related_columns:
-                        if self.final_solution[i, j] != 1:
-                            self.available[i,j] = False
-            
-        def set_as_available(self, row: int, col: int) -> None:
-            """
-            Update the available matrix to mark the cells as available.
-
-            Parameters:
-            ---------
-            - `row`: The row index of the agent.
-            - `col`: The column index of the task.
-            """
-            if col < len(self.task_column_lookup):
-                # Get the agent and task indices
-                agent = self.agent_row_lookup[row]
-                task = self.task_column_lookup[col]
-                # Get the rows and columns related to the agent and task
-                related_rows = self.agent_rows[agent]
-                related_cols = self.task_columns[task]
-                # Mark the corresponding cells as available
-                start_row, end_row = related_rows[0][0], related_rows[0][-1]
-                start_col, end_col = related_cols[0][0], related_cols[0][-1]
-                self.available[start_row: end_row + 1, start_col: end_col + 1] = True
-
-        def find_star_zero(self, row: int, column: int) -> None:
-            """
-            Finds and marks the zero in the matrix as a 0*.
-
-            Parameters:
-            ---------
-            - `row`: The row index of the agent.
-            - `column`: The column index of the task.
-            """
-            self.final_solution[row, column] = 1
-            self.set_as_unavailable(row, column)
-
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+    # In order to enable logging, change the level to logging.info
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s - %(message)s')
+    # In order to run the doctests, uncomment the following lines:
     import doctest
     doctest.testmod(verbose=True)
-    # matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-    # ability_agent_vector = np.array([2, 2, 1, 3])
-    # task_range_vector = np.array([1, 2, 3, 1, 2])
-    # kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
