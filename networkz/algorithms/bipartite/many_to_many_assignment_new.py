@@ -56,6 +56,17 @@ def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskR
     >>> task_range_vector = np.array([1, 1, 1])
     >>> kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
     {0: [2], 1: [1], 2: [0]}
+
+    Example 4:
+    ----------
+    >>> matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+    >>> ability_agent_vector = np.array([2, 2, 1, 3])
+    >>> task_range_vector = np.array([1, 2, 3, 1, 2])
+    >>> try:
+    ...     kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
+    ... except ValueError as e:
+    ...     print(e)
+    The Cordinality Constraint is not satisfied, with agents summing to 8 and tasks summing to 9.
     """
     matrix = np.asarray(matrix)
     agentVector = np.asarray(agentVector)
@@ -89,7 +100,7 @@ def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskR
 
     return assignment_dict
 
-def step_1_2_func(state) -> callable:
+def step_1_2_func(state):
     """
     Step 1: Reduce matrix M: for each row of M, find the smallest element and subtract it from every element in its row;
             after that, find the smallest element and subtract it from every element in its column.
@@ -97,8 +108,23 @@ def step_1_2_func(state) -> callable:
     Step 2: Initial Stars: find a zero (Z) in M. If there is no starred zero in its row or column, star Z, and adjust zeros to be
             unavailable, which belong to the same agent but in different rows or columns.
     
-    Example 1:
+    Example:
     ----------
+    >>> matrix = np.array([[4, 8, 5], [7, 6, 9], [8, 7, 6]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> next_step = step_1_2_func(state)
+    >>> state.matrix
+    array([[0, 4, 1],
+           [1, 0, 3],
+           [2, 1, 0]])
+    >>> state.final_solution
+    array([[1, 0, 0],
+           [0, 1, 0],
+           [0, 0, 1]])
+    >>> next_step == step_3_func
+    True
     """
     assert isinstance(state, ManyToManyAssignment)
     logging.info(f"------------------Step 1------------------")
@@ -130,6 +156,30 @@ def step_3_func(state):
     """
     Cover each column containing a starred zero.
     If all the columns are covered, go to Step 7; else go to Step 4.
+
+    Example 1:
+    ----------
+    >>> matrix = np.array([[0, 2, 0], [0, 0, 0], [0, 1, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.final_solution = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 1]])
+    >>> next_step = step_3_func(state)
+    >>> state.uncolored_columns
+    array([False,  True, False])
+    >>> next_step == step_4_func
+    True
+
+    Example 2:
+    ----------
+    >>> matrix = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.final_solution = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    >>> next_step = step_3_func(state)
+    >>> state.uncolored_columns
+    array([False, False, False])
     """
     assert isinstance(state, ManyToManyAssignment)
     logging.info(f"------------------Step 3------------------")
@@ -158,6 +208,24 @@ def step_4_func(state):
     - Continue until there are no uncovered zeros left.
 
     - Save the smallest uncovered value and go to Step 6.
+
+    Example:
+    ----------
+    >>> matrix = np.array([[0, 2, 0], [3, 0, 1], [1, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.uncolored_rows = np.array([True, True, True])
+    >>> state.uncolored_columns = np.array([True, True, True])
+    >>> state.available = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
+    >>> state.final_solution = np.zeros_like(matrix)
+    >>> next_step = step_4_func(state)
+    >>> state.final_solution
+    array([[2, 0, 0],
+           [0, 0, 0],
+           [0, 0, 0]])
+    >>> next_step == step_5_func
+    True
     """
     assert isinstance(state, ManyToManyAssignment)
     logging.info(f"------------------Step 4------------------")
@@ -222,6 +290,27 @@ def step_5_func(state):
     - Continue until the series terminates at a primed zero that has no starred zero in its column. 
     - Unstar each starred zero of the series, star each primed zero of the series, erase all primes and uncover every line in the matrix. 
     - Return to Step 3
+
+    Example:
+    --------
+    >>> matrix = np.array([[0, 2, 0], [3, 0, 1], [1, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.uncolored_rows = np.array([True, True, True])
+    >>> state.uncolored_columns = np.array([True, True, True])
+    >>> state.available = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
+    >>> state.final_solution = np.array([[0, 1, 0], [0, 0, 0], [0, 0, 2]])
+    >>> state.initial_primed_zero_row = 2
+    >>> state.initial_primed_zero_column = 2
+    >>> state.path = np.full((100, 2), -1)
+    >>> next_step = step_5_func(state)
+    >>> state.final_solution
+    array([[0, 1, 0],
+           [0, 0, 0],
+           [0, 0, 1]])
+    >>> next_step == step_3_func
+    True
     """
     assert isinstance(state, ManyToManyAssignment)
     logging.info(f"------------------Step 5------------------")
@@ -283,6 +372,23 @@ def step_6_func(state):
     Add the value found in Step 4 to every element of each covered row,
     and subtract it from every element of each uncovered column.
     Return to Step 4 without altering any stars, primes, or covered lines.
+
+    Example:
+    --------
+    >>> matrix = np.array([[0, 2, 0], [3, 0, 1], [1, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.uncolored_rows = np.array([True, False, True])
+    >>> state.uncolored_columns = np.array([True, False, True])
+    >>> state.available = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
+    >>> next_step = step_6_func(state)
+    >>> state.matrix
+    array([[0, 2, 0],
+           [3, 0, 1],
+           [1, 0, 0]])
+    >>> next_step == step_4_func
+    True
     """
     assert isinstance(state, ManyToManyAssignment)
     logging.info(f"------------------Step 6------------------")
@@ -445,3 +551,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
     import doctest
     doctest.testmod(verbose=True)
+    # matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+    # ability_agent_vector = np.array([2, 2, 1, 3])
+    # task_range_vector = np.array([1, 2, 3, 1, 2])
+    # kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
