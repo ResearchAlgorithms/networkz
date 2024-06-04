@@ -65,7 +65,7 @@ def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskR
     if 0 in matrix.shape:
         current_step = None
     else:
-        current_step = step_1_func
+        current_step = step_1_2_func
 
     while current_step is not None:
         current_step = current_step(next_state)
@@ -89,16 +89,19 @@ def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskR
 
     return assignment_dict
 
-def step_1_func(state):
+def step_1_2_func(state) -> callable:
     """
     Step 1: Reduce matrix M: for each row of M, find the smallest element and subtract it from every element in its row;
             after that, find the smallest element and subtract it from every element in its column.
     
     Step 2: Initial Stars: find a zero (Z) in M. If there is no starred zero in its row or column, star Z, and adjust zeros to be
             unavailable, which belong to the same agent but in different rows or columns.
+    
+    Example 1:
+    ----------
     """
     assert isinstance(state, ManyToManyAssignment)
-    logging.info(f"Step 1")
+    logging.info(f"------------------Step 1------------------")
     # Subtract the minimum value of each row from all elements of that row
     for i in range(state.matrix.shape[0]):
         min_value = np.min(state.matrix[i])
@@ -109,6 +112,7 @@ def step_1_func(state):
         state.matrix[:, j] -= min_value
 
     logging.info(f'Matrix after step 1: \n{state.matrix}')
+    logging.info(f"------------------Step 2------------------")
     # Combine the indicies of the rows and columns where there is a 0.
     for i, j in zip(*np.where(state.matrix == 0)):
         if state.uncolored_columns[j] and state.uncolored_rows[i] and state.available[i,j]:
@@ -117,6 +121,8 @@ def step_1_func(state):
             state.uncolored_rows[i] = False
     logging.info(f'Final Solution matrix after step 2: \n{state.final_solution}')
     state.uncolor_rows_columns()
+    logging.info(f'uncolored_rows: {state.uncolored_rows}')
+    logging.info(f'uncolored_columns: {state.uncolored_columns}')
     return step_3_func
 
 
@@ -126,7 +132,7 @@ def step_3_func(state):
     If all the columns are covered, go to Step 7; else go to Step 4.
     """
     assert isinstance(state, ManyToManyAssignment)
-    logging.info(f"Step 3")
+    logging.info(f"------------------Step 3------------------")
     # Identify the columns in the final solution that contain at least one starred zero
     covered_columns = np.any(state.final_solution == 1, axis=0)
 
@@ -137,6 +143,7 @@ def step_3_func(state):
 
     # If there are still uncovered columns, proceed to the next step
     if covered_columns.sum() < state.matrix.shape[1]:
+        logging.info(f'Covered columns sum: {covered_columns.sum()}.\nColumns: {state.matrix.shape[1]}')
         return step_4_func
 
 
@@ -153,14 +160,18 @@ def step_4_func(state):
     - Save the smallest uncovered value and go to Step 6.
     """
     assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 4------------------")
     # If the element is 0, it assigns 1 to the corresponding element in matrix, indicating that the element is uncovered.
     # If the element is not 0 (i.e., it's nonzero), it assigns 0 to the corresponding element in matrix, indicating that the element is covered.
     matrix = np.where(state.matrix == 0, 1, 0)
+    logging.info(f'Temp Matrix at Step 4:\n{matrix}')
 
     # Create a covered matrix
     prime_matrix = matrix * state.uncolored_rows[:, np.newaxis]
     prime_matrix *= np.asarray(state.uncolored_columns, dtype=int)
     prime_matrix *= state.available.astype(int)
+
+    logging.info(f'Prime Matrix at Step 4:\n{prime_matrix}')
 
     rows = state.matrix.shape[0]
     columns = state.matrix.shape[1]
@@ -168,20 +179,28 @@ def step_4_func(state):
     while True:
         # Find an uncovered, available zero
         row, col = np.unravel_index(np.argmax(prime_matrix), (rows, columns))
+        logging.info(f'Uncovered zero at row: {row}, column: {col}')
         
         # If no uncovered zero is found, go to Step 6
         if prime_matrix[row, col] == 0:
+            logging.info(f'Prime Matrix at ({row},{col}):\n{prime_matrix[row, col]}')
+            logging.info(f'No uncovered zero found. Proceeding to Step 6.')
             return step_6_func
 
         # Mark the row and column as prime (which will be equal to 2 in the final solution matrix)
         state.final_solution[row, col] = 2
+        logging.info(f'Available before marking as unavailable:\n{state.available}')
         state.set_as_unavailable(row, col)
+        logging.info(f'Available after marking as unavailable:\n{state.available}')
         
         # Find the first starred element in the row
         star_col = np.argmax(state.final_solution[row] == 1)
+        logging.info(f'The starred element in the row: {star_col}')
         
         # If no starred element is found, go to Step 5
         if state.final_solution[row, star_col] != 1:
+            logging.info(f'Final Solution matrix at ({row},{star_col}):\n{state.final_solution[row, star_col]}')
+            logging.info(f'No starred element found in the row. Proceeding to Step 5.')
             state.initial_primed_zero_row = row
             state.initial_primed_zero_column = col
             return step_5_func
@@ -205,13 +224,16 @@ def step_5_func(state):
     - Return to Step 3
     """
     assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 5------------------")
     count = 0
     path = state.path
     # Step 5.1: Initialize path with the uncovered primed zero found in Step 4
     path[count, 0] = state.initial_primed_zero_row
     path[count, 1] = state.initial_primed_zero_column
+    logging.info(f'Current path, before entering Step 5 while loop:\n{path}')
 
     while True:
+        logging.info(f'Step 5 while loop')
         # Step 5.2: Find the first starred zero in the column of the current path element
         row = np.argmax(state.final_solution[:, path[count, 1]] == 1)
         if state.final_solution[row, path[count, 1]] != 1:
@@ -232,6 +254,7 @@ def step_5_func(state):
         count += 1
         path[count, 0] = path[count - 1, 0]
         path[count, 1] = col
+        logging.info(f'Current path:\n{path}')
 
     # Step 5.4: Convert the path, alternating between unstar and star
     for i in range(count + 1):
@@ -244,9 +267,14 @@ def step_5_func(state):
             state.find_star_zero(row=path[i, 0], column=path[i, 1])
 
     # Step 5.5: Uncover all rows and columns
+    logging.info(f'Before uncoloring rows and columns:\nUncolored rows: {state.uncolored_rows}, Uncolored columns: {state.uncolored_columns}')
     state.uncolor_rows_columns()
+    logging.info(f'After uncoloring rows and columns:\nUncolored rows: {state.uncolored_rows}, Uncolored columns: {state.uncolored_columns}')
     # Step 5.6: Erase all primes
+    logging.info(f'Before erasing primes:\n{state.final_solution}')
     state.final_solution[state.final_solution == 2] = 0
+    logging.info(f'After erasing primes:\n{state.final_solution}')
+    logging.info(f'End of Step 5')
     return step_3_func
 
 
@@ -257,14 +285,16 @@ def step_6_func(state):
     Return to Step 4 without altering any stars, primes, or covered lines.
     """
     assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 6------------------")
+    logging.info(f'Matrix at beginning of Step 6:\n{state.matrix}')
     # Check if there are any uncovered rows and columns
     if np.any(state.uncolored_rows) and np.any(state.uncolored_columns):
         # Copy the current state of the matrix
         temp_matrix = state.matrix.copy()
 
         # Assign the maximum value in the matrix to elements where the available matrix is 0
-        maxval = np.max(temp_matrix)
-        temp_matrix[np.where(state.available==0)] = maxval
+        max_value = np.max(temp_matrix)
+        temp_matrix[np.where(state.available==0)] = max_value
 
         # Find the smallest uncovered value in the matrix
         minval = np.min(temp_matrix[state.uncolored_rows], axis=0)
@@ -277,7 +307,7 @@ def step_6_func(state):
 
         # Subtract the smallest uncovered value from each element of the uncovered columns
         state.matrix[:, state.uncolored_columns] -= minval
-
+        logging.info(f'Matrix at end of Step 6 after updating:\n{state.matrix}')
         # Ensure that there are no negative values in the matrix
         state.matrix[np.where(state.matrix < 0)] = 0
 
@@ -287,7 +317,7 @@ class ManyToManyAssignment:
         """
         Class to represent the Many to Many Assignment Problem.
         """
-        def __init__(self, matrix: np.asarray, taskRangeVector: np.asarray, agentVector: np.asarray):
+        def __init__(self, matrix: np.asarray, taskRangeVector: np.asarray, agentVector: np.asarray) -> None:
             self.matrix = matrix.copy()
             self.taskRangeVector = taskRangeVector.copy()
             self.agentVector = agentVector.copy()
@@ -325,7 +355,7 @@ class ManyToManyAssignment:
             agent_sum = sum(self.agentVector)
             task_sum = sum(self.taskRangeVector)
             if agent_sum < task_sum:
-                    warning_message = "The Cordinality Constraint is not satisfied."
+                    warning_message = f"The Cordinality Constraint is not satisfied, with agents summing to {agent_sum} and tasks summing to {task_sum}."
                     logging.warning(warning_message)
                     raise ValueError(warning_message)
 
@@ -413,12 +443,5 @@ class ManyToManyAssignment:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
-    # c = np.array([[3,0,1,2],[2,3,0,1],[3,0,1,2],[1,0,2,3]])
-    # La = [2,2,2,2]
-    # L = [2,2,2,2]
-    # c = np.power(c,1)
-
-    # assignments = kmb(c,La,L)
-    # print(assignments)
     import doctest
     doctest.testmod(verbose=True)
