@@ -2,462 +2,548 @@
 	An implementation of the algorithms in:
  
 	"Solving the Many to Many assignment problem by improving
-       the Kuhn–Munkres algorithm with backtracking", by:
-       Haibin Zhu, 
-       Dongning Liu,
-       Siqin Zhang,
-       Yu Zhu,
-       Luyao Teng,
-       Shaohua Teng.
+    the Kuhn–Munkres algorithm with backtracking".
 
-       https://www.sciencedirect.com/science/article/pii/S0304397516000037
+    Authors: Haibin Zhu, Dongning Liu, Siqin Zhang, Yu Zhu, Luyao Teng, and Shaohua Teng.
 
-       Programmers: Tom Shabalin and Dor Harizi.
-       Date: 2024-05-16.
+    https://www.sciencedirect.com/science/article/pii/S0304397516000037
+
+    Programmers: Tom Shabalin and Dor Harizi.
+    Date: 2024-05-16.
 """
 
-import math
 import numpy as np
 import logging
 
 class ManyToManyAssignment:
-       def __init__(self):
-              self.taskRangeVector = None
-              self.agentVector = None
-              self.matrix = None
-              self.colored_columns = []
-              self.colored_rows = []
-              self.zeroStars = []
-              self.unavailable_zeros = []
-              self.prime_z = []
-              self.unlcolored_zeros = []
-              self.Z_0 = []
-              self.Z_1 = []
-              self.Z_2 = []
-              self.min_value = None
-              
-       def many_to_many_assignment(self, taskRangeVector, agentVector, matrix)-> np.array:
-              """
-              Solving the Many to Many assignment problem by improving the Kuhn–Munkres algorithm with backtracking.
+        """
+        Class to represent the Many to Many Assignment Problem.
+        """
+        def __init__(self, matrix: np.asarray, taskRangeVector: np.asarray, agentVector: np.asarray) -> None:
+            self.matrix = matrix.copy()
+            self.taskRangeVector = taskRangeVector.copy()
+            self.agentVector = agentVector.copy()
+            self.agents = self.matrix.shape[0]
+            self.tasks = self.matrix.shape[1]
+            self.preperation_stage()
+            self.k = self.matrix.shape[0]
+            
+            # New matrix with size (kxk)
+            self.available = np.ones((self.k,self.k), dtype=bool)
+            # The uncovered rows vector
+            self.uncolored_rows = np.ones(self.k, dtype=bool)
+            # The uncovered columns vector
+            self.uncolored_columns = np.ones(self.k, dtype=bool)
+            self.final_solution = np.zeros((self.k, self.k), dtype=int)
+            # Row index of the initial uncovered primed zero
+            self.initial_primed_zero_row = 0
+            # Column index of the initial uncovered primed zero
+            self.initial_primed_zero_column = 0
+            # Path to construct alternating series of primed and starred zeros
+            self.path = np.zeros((2 * self.k, 2), dtype=int)
 
-              Parameters
-              ----------
-              `ability_agent_vector`: Vector of the abilities of the agents
-              `task_range_vector`: Vector of the task ranges
-              `performance_matrix`: Matrix of the performance of the agents on the tasks
+        def uncolor_rows_columns(self) -> None:
+            """
+            Uncolor the rows and columns of the matrix.
+            """
+            self.uncolored_rows[:] = True
+            self.uncolored_columns[:] = True
 
-              Returns
-              ----------
-              Allocation Matrix of the agents to the tasks.
+        def preperation_stage(self):
+            """
+            Preperation stage of the Matrix.
+            """
+            # Check cordinality constraints
+            agent_sum = sum(self.agentVector)
+            task_sum = sum(self.taskRangeVector)
+            if agent_sum < task_sum:
+                    warning_message = f"The Cordinality Constraint is not satisfied, with agents summing to {agent_sum} and tasks summing to {task_sum}."
+                    logging.warning(warning_message)
+                    raise ValueError(warning_message)
 
-              Example 1: 
-              >>> ability_agent_vector = np.array([1, 2, 1, 1])
-              >>> task_range_vector = np.array([1, 1, 1, 1, 1])
-              >>> performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> many_to_many_assignment(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 0,  0,  0,  0,  1],
-                     [ 1,  0,  0,  1,  0],
-                     [ 0,  1,  0,  0,  0],
-                     [ 0,  0,  1,  0,  0]])
-              
-              Example 2:
-              >>> ability_agent_vector = np.array([1, 1, 1])
-              >>> task_range_vector = np.array([1, 1, 1])
-              >>> performance_matrix = np.array([[40, 60, 15], [25, 30, 45], [55, 30, 25]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 0,  0,  1],
-                     [ 1,  0,  0],
-                     [ 0,  1,  0]])
+            # Duplicate Columns: Ensures each task can appear multiple times.
+            self.matrix = np.repeat(self.matrix, self.taskRangeVector, axis=1)
+            # Duplicate Rows: Ensures each agent can handle multiple tasks.
+            self.matrix = np.repeat(self.matrix, self.agentVector, axis=0)
+            # Create Additional Columns: Ensures the matrix is square and prevents selection of these columns by assigning high costs.
+            zero_columns = np.ones((self.matrix.shape[0], self.matrix.shape[0] - self.matrix.shape[1]), dtype=int) * (np.max(self.matrix) * 2)
+            # Combine Matrices: Forms the final expanded and square matrix suitable for the assignment algorithm.
+            self.matrix = np.hstack((self.matrix, zero_columns))
 
-              Example 3: 
-              >>> ability_agent_vector = np.array([1, 1, 1])
-              >>> task_range_vector = np.array([1, 1, 1])
-              >>> performance_matrix = np.array([[30, 25, 10], [15, 10, 20], [25, 20, 15]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 0,  0,  1],
-                     [ 0,  1,  0],
-                     [ 1,  0,  0]])
-              
-              Example 4: 
-              >>> ability_agent_vector = np.array([2, 2, 1, 3])
-              >>> task_range_vector = np.array([1, 2, 3, 1, 1])
-              >>> performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              ValueError: The Cordinality Constraint is not satisfied.
+            self.find_agent_in_row = range(self.tasks)
+            self.find_task_in_col = range(self.agents)
 
-              Example 5: 
-              >>> ability_agent_vector = np.array([1, 1, 1])
-              >>> task_range_vector = np.array([1, 1, 1])
-              >>> performance_matrix = np.array([[-30, 25, -1], [-7, 10, 2], [25, -4, -3]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              ValueError: The performance matrix has values less then 0.
+            self.find_agent_in_row = np.repeat(self.find_agent_in_row, self.agentVector)
+            self.find_task_in_col = np.repeat(self.find_task_in_col, self.taskRangeVector)
 
-              Example 6:
-              >>> ability_agent_vector = np.array([1, 2, 1])
-              >>> task_range_vector = np.array([1, 1, 1, 1])
-              >>> performance_matrix = np.array([[3, 4, 5, 2], [5, 2, 3, 4], [1, 6, 2, 3]])
-              >>> preperation_stage(ability_agent_vector, task_range_vector, performance_matrix)
-              array([[ 0,  0,  0,  1],
-                     [ 0,  1,  1,  0],
-                     [ 0,  0,  1,  0]])
-              """
-              self.taskRangeVector = np.array(taskRangeVector)
-              self.agentVector = np.array(agentVector)
-              self.matrix = np.array(matrix)
-              # Step 1: Preperation Stage
-              try:
-                     self.preperation_stage()
-              except ValueError as e:
-                     logging.warning(e)
-                     return
-              logging.info(f'The matrix after Step 1:\n {self.matrix}')
-              # Step 2: Find the minimum value in each row and subtract it from each element in the row.
-                     #  Find the minimum value in each column and subtract it from each element in the column.
-              self.find_min_value_in_row_and_subtruct()
-              self.find_min_value_in_column_and_subtruct()
-              logging.info(f'The matrix after the first step:\n {self.matrix}\n')
-              self.find_zero_star()
-              logging.info(f'The zero stars: {self.zeroStars}.\nStart of the main while loop.\n')
-              # Main loop
-              while True:
-                     if self.check_colored_columns():
-                            self.construct_final_solution()
-                            return
-                     # Inner loop
-                     while not self.check_colored_columns():
-                            self.find_uncolored_zeros()
-                            for row, column in self.unlcolored_zeros:
-                                   if (row, column) not in self.prime_z:
-                                          self.prime_z.append((row, column))
-                                          self.mark_unavailable_zeros(row, column)
-                                          for zero_star in self.zeroStars:
-                                                 if zero_star[0] == row and row not in self.colored_rows:
-                                                        self.colored_rows.append(row)
-                                                        if zero_star[1] in self.colored_columns:
-                                                               self.colored_columns.remove(zero_star[1])
-                                                        break
-                                   else:
-                                          # while column in [zero_star[1] for zero_star in self.zeroStars]:
-                                          for i, j in self.prime_z:
-                                                 if j in [zero_star[1] for zero_star in self.zeroStars]:
-                                                        # Create Z_0: all 0 in prime_z and in uncolored_zeros
-                                                        if (i, j) in self.unlcolored_zeros and (i, j) not in self.Z_0:
-                                                               self.Z_0.append((i, j))
-                                                        # Create Z_1: all 0 in zero_star group and in columns of Z_0
-                                                        for k, m in self.zeroStars:
-                                                               if m in [z_0[1] for z_0 in self.Z_0] and (k, m) not in self.Z_1:
-                                                                      self.Z_1.append((k, m))
-                                                        # Create Z_2: all 0 in prime_z and in rows of Z_1
-                                                        for r, t in self.prime_z:
-                                                               if r in [z_1[0] for z_1 in self.Z_1] and (r, t) not in self.Z_2:
-                                                                      self.Z_2.append((r, t))
-                                          # Unstar all 0* that is in Z_0, Z_1, Z_2 (if exist)
-                                          temp_backtracking = []
-                                          for row, column in self.zeroStars:
-                                                 if (row, column) in self.Z_0 or (row, column) in self.Z_1 or (row, column) in self.Z_2:
-                                                        temp_backtracking.append((row, column))
-                                                        self.zeroStars.remove((row, column))
-                                          # Star all 0 that in prime_Z and in Z_0, Z_1, Z_2
-                                          for row, column in self.prime_z:
-                                                 if (row, column) in self.Z_0 or (row, column) in self.Z_1 or (row, column) in self.Z_2:
-                                                        self.zeroStars.append((row, column))
+            self.task_columns = {}
+            self.agent_rows = {}
 
-                                          # Clean up prime_z and clean up colored_rows
-                                          self.prime_z = []
-                                          self.colored_rows = []
+            self.agent_rows = [np.where(self.find_agent_in_row == i) for i in range(len(self.agentVector))]
+            self.task_columns = [np.where(self.find_task_in_col == j) for j in range(len(self.taskRangeVector))]
 
-                                          # Backtracking: Adjust unavailable elements to be available according to the erased stared zeros
-                                          # According to the erased starred and primed zeros.
-                                          for row, column in temp_backtracking:
-                                                 for i, j in self.unavailable_zeros:
-                                                        if i == row or j == column:
-                                                               self.unavailable_zeros.remove((i, j))
-                                          self.step_3_func()
-                                   # End if loop
-                            # End for non covered zero loop
-                            self.save_smallest_value()
-                            self.add_h_to_colored_row_elements(self.min_value)
-                            self.substract_h_from_uncolored_columns(self.min_value)
-                     # End of while inner loop
-              # End of while main loop
-              # End of the Algorithm
+        def set_as_unavailable(self, row: int, col: int) -> None:
+            """
+            Mark the cells in the `available` matrix as unavailable, ensuring that the same agent cannot be assigned to the same task more than once.
+
+            Parameters:
+            ---------
+            - `row` - row of agent
+            - `col` - column of task
+            """
+            if col < len(self.find_task_in_col):
+                # Get the agent and task indices
+                agent = self.find_agent_in_row[row]
+                task = self.find_task_in_col[col]
+                # Get the related rows and columns, excluding the current row and columns
+                related_rows = self.agent_rows[agent]
+                related_columns = self.task_columns[task]
+                # Remove the current row and column from the related rows and columns
+                related_rows = np.delete(self.agent_rows[agent], np.where(self.agent_rows[agent] == row)[1])
+                related_columns = np.delete(self.task_columns[task], np.where(self.task_columns[task] == col)[1])
+                # Mark the corresponding cells as unavailable if they are not starred (1 represents a starred zero in the final solution matrix)
+                for i in related_rows:
+                    for j in related_columns:
+                        if self.final_solution[i, j] != 1:
+                            self.available[i,j] = False
+            
+        def set_as_available(self, row: int, col: int) -> None:
+            """
+            Update the available matrix to mark the cells as available.
+
+            Parameters:
+            ---------
+            - `row`: The row index of the agent.
+            - `col`: The column index of the task.
+            """
+            if col < len(self.find_task_in_col):
+                # Get the agent and task indices
+                agent = self.find_agent_in_row[row]
+                task = self.find_task_in_col[col]
+                # Get the rows and columns related to the agent and task
+                related_rows = self.agent_rows[agent]
+                related_cols = self.task_columns[task]
+                # Mark the corresponding cells as available
+                start_row, end_row = related_rows[0][0], related_rows[0][-1]
+                start_col, end_col = related_cols[0][0], related_cols[0][-1]
+                self.available[start_row: end_row + 1, start_col: end_col + 1] = True
+
+        def find_star_zero(self, row: int, column: int) -> None:
+            """
+            Finds and marks the zero in the matrix as a 0*.
+
+            Parameters:
+            ---------
+            - `row`: The row index of the agent.
+            - `column`: The column index of the task.
+            """
+            self.final_solution[row, column] = 1
+            self.set_as_unavailable(row, column)
+
+def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskRangeVector: np.asarray) -> dict:
+    """
+    Solving the Many to Many assignment problem by improving the Kuhn–Munkres algorithm with backtracking.
+
+    Parameters
+    ----------
+    `agentVector`: Vector of the abilities of the agents
+    `taskRangeVector`: Vector of the task ranges
+    `matrix`: Performance matrix of the agents and tasks
+
+    Returns
+    ----------
+    Dictionary containing the assignment of agents to tasks.
+
+    Example 1:
+    ----------
+    >>> matrix = np.array([[3, 0, 1, 2],[2, 3, 0, 1],[3, 0, 1, 2],[1, 0, 2, 3]])
+    >>> ability_agent_vector = np.array([2,2,2,2])
+    >>> task_range_vector = np.array([2,2,2,2])
+    >>> kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
+    {0: [3, 0], 1: [2, 3], 2: [1, 2], 3: [0, 1]}
+
+    Example 2:
+    ----------
+    >>> matrix = np.array([[40, 60, 15],[25, 30, 45],[55, 30, 25]])
+    >>> ability_agent_vector = np.array([1, 1, 1])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
+    {0: [2], 1: [0], 2: [1]}
+
+    Example 3:
+    ----------
+    >>> matrix = np.array([[30, 25, 10],[15, 10, 20],[25, 20, 15]])
+    >>> ability_agent_vector = np.array([1, 1, 1])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
+    {0: [2], 1: [1], 2: [0]}
+
+    Example 4:
+    ----------
+    >>> matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+    >>> ability_agent_vector = np.array([2, 2, 1, 3])
+    >>> task_range_vector = np.array([1, 2, 3, 1, 2])
+    >>> try:
+    ...     kuhn_munkers_backtracking(matrix, ability_agent_vector, task_range_vector)
+    ... except ValueError as e:
+    ...     print(e)
+    The Cordinality Constraint is not satisfied, with agents summing to 8 and tasks summing to 9.
+    """
+    matrix = np.asarray(matrix)
+    agentVector = np.asarray(agentVector)
+    taskRangeVector = np.asarray(taskRangeVector)
+    next_state: ManyToManyAssignment = ManyToManyAssignment(matrix, taskRangeVector, agentVector)
+
+    if 0 in matrix.shape:
+        current_step = None
+    else:
+        current_step = step_1_2_func
+
+    while current_step is not None:
+        current_step = current_step(next_state)
+
+    marked = next_state.final_solution
+    assignments = np.where(marked == 1)
+
+    # Create the dictionary for assignments
+    assignment_dict = {}
+    for agent_index, task_index in zip(assignments[0], assignments[1]):
+        original_agent = next_state.find_agent_in_row[agent_index]
+        if task_index < taskRangeVector.sum():
+            original_task = next_state.find_task_in_col[task_index]
+        else:
+            original_task = -1
+        
+        if original_agent in assignment_dict:
+            assignment_dict[original_agent].append(original_task)
+        else:
+            assignment_dict[original_agent] = [original_task]
+    
+    return assignment_dict
+
+def step_1_2_func(state):
+    """
+    Step 1: Reduce matrix M: for each row of M, find the smallest element and subtract it from every element in its row;
+            after that, find the smallest element and subtract it from every element in its column.
+    
+    Step 2: Initial Stars: find a zero (Z) in M. If there is no starred zero in its row or column, star Z, and adjust zeros to be
+            unavailable, which belong to the same agent but in different rows or columns.
+    
+    Example:
+    ----------
+    >>> matrix = np.array([[4, 8, 5], [7, 6, 9], [8, 7, 6]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> next_step = step_1_2_func(state)
+    >>> state.matrix
+    array([[0, 4, 1],
+           [1, 0, 3],
+           [2, 1, 0]])
+    >>> state.final_solution
+    array([[1, 0, 0],
+           [0, 1, 0],
+           [0, 0, 1]])
+    >>> next_step == step_3_func
+    True
+    """
+    assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 1------------------")
+    # Subtract the minimum value of each row from all elements of that row
+    for i in range(state.matrix.shape[0]):
+        min_value = np.min(state.matrix[i])
+        state.matrix[i] -= min_value
+    # Subtract the minimum value of each column from all elements of that column
+    for j in range(state.matrix.shape[1]):
+        min_value = np.min(state.matrix[:, j])
+        state.matrix[:, j] -= min_value
+
+    logging.info(f'Matrix after step 1: \n{state.matrix}')
+    logging.info(f"------------------Step 2------------------")
+    # Combine the indicies of the rows and columns where there is a 0.
+    for i, j in zip(*np.where(state.matrix == 0)):
+        if state.uncolored_columns[j] and state.uncolored_rows[i] and state.available[i,j]:
+            state.find_star_zero(row=i, column=j)
+            state.uncolored_columns[j] = False
+            state.uncolored_rows[i] = False
+    logging.info(f'Final Solution matrix after step 2: \n{state.final_solution}')
+    state.uncolor_rows_columns()
+    logging.info(f'uncolored_rows: {state.uncolored_rows}')
+    logging.info(f'uncolored_columns: {state.uncolored_columns}')
+    return step_3_func
 
 
+def step_3_func(state):
+    """
+    Cover each column containing a starred zero.
+    If all the columns are covered, go to Step 7; else go to Step 4.
 
-       
-       def duplicate_row(self, row_index: tuple):
-              """
-              Duplicate a row in a matrix.
+    Example 1:
+    ----------
+    >>> matrix = np.array([[0, 2, 0], [0, 0, 0], [0, 1, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.final_solution = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 1]])
+    >>> next_step = step_3_func(state)
+    >>> state.uncolored_columns
+    array([False,  True, False])
+    >>> next_step == step_4_func
+    True
 
-              Parameters
-              ----------
-              `matrix`: The matrix to duplicate the row.
-              `row_index (i, j)`: i - the row to duplicate, j - the number of times to duplicate.
+    Example 2:
+    ----------
+    >>> matrix = np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.final_solution = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    >>> next_step = step_3_func(state)
+    >>> state.uncolored_columns
+    array([False, False, False])
+    """
+    assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 3------------------")
+    # Identify the columns in the final solution that contain at least one starred zero
+    covered_columns = np.any(state.final_solution == 1, axis=0)
 
-              Returns
-              ----------
-              The matrix with the duplicated row.
+    # Mark the identified columns as covered
+    logging.info(f"before: uncolored_columns: {state.uncolored_columns}")
+    state.uncolored_columns[covered_columns] = False
+    logging.info(f"after: uncolored_columns: {state.uncolored_columns}")
 
-              Example 1:
-              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-              >>> duplicate_row(matrix, (1, 1))
-              array([[ 1,  2,  3],
-                     [ 4,  5,  6],
-                     [ 7,  8,  9],
-                     [ 4,  5,  6]])
+    # If there are still uncovered columns, proceed to the next step
+    if covered_columns.sum() < state.matrix.shape[1]:
+        logging.info(f'Covered columns sum: {covered_columns.sum()}.\nColumns: {state.matrix.shape[1]}')
+        return step_4_func
 
-              Exampe 2:
-              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> duplicate_row(matrix, (1, 1))
-              array([[ 49,  45,  39,  15,  16],
-                     [ 5,  30,  85,  22,  78],
-                     [ 61,  16,  71,  59,  20],
-                     [ 44,  79,  1,  48,  22],
-                     [ 5,  30,  85,  22,  78]])
-              """
-              row, num_duplications = row_index
-              row_to_duplicate = self.matrix[row]
-              duplicated_rows = np.tile(row_to_duplicate, (num_duplications - 1, 1))
-              self.matrix = np.vstack((self.matrix, duplicated_rows))
-       
-       def create_zeros_columns(self, columns_amount: int):
-              """
-              Duplicate a column filled with zeros in a matrix.
 
-              Parameters
-              ----------
-              `matrix`: The matrix to duplicate the column.
-              `columns_amount`: The number of columns to duplicate.
+def step_4_func(state):
+    """
+    Prime some uncovered zeros: find an uncovered zero and prime it, and adjust zeros to be unavailable, which
+    belong to the same agent but in different rows or columns (starred zeros are excluded).
 
-              Returns
-              ----------
-              The matrix with the duplicated columns filled with zeros.
+    - If there is no starred zero in the row containing this primed zero, go to Step 5; else, cover this row and
+    uncover the column containing the starred zero.
 
-              Example 1:
-              >>> matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-              >>> create_zeros_columns(matrix, 2)
-              array([[ 8,  6,  7,  9,  5,  0,  0],
-                     [ 6,  7,  8,  6,  7,  0,  0],
-                     [ 7,  8,  5,  6,  8,  0,  0],
-                     [ 7,  6,  9,  7,  5,  0,  0]])
-              
-              Example 2:
-              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> create_zeros_columns(matrix, 1)
-              array([[ 49,  45,  39,  15,  16,  0],
-                     [ 5,  30,  85,  22,  78,  0],
-                     [ 61,  16,  71,  59,  20,  0],
-                     [ 44,  79,  1,  48,  22,  0]])
-              """
-              rows, _ = self.matrix.shape
-              zeros = np.zeros((rows, columns_amount))
-              self.matrix = np.hstack((self.matrix, zeros))
+    - Continue until there are no uncovered zeros left.
 
-       def preperation_stage(self):
-              """
-              Preperation stage of the Matrix, and Cardinality Constraint detection.
-              """
-              agent_sum = sum(self.agentVector)
-              task_sum = sum(self.taskRangeVector)
+    - Save the smallest uncovered value and go to Step 6.
 
-              for i in range(len(self.agentVector)):
-                     if self.agentVector[i] > 1:
-                            self.duplicate_row((i, self.agentVector[i]))
-              if agent_sum < task_sum:
-                     warning_message = "The Cordinality Constraint is not satisfied."
-                     logging.warning(warning_message)
-                     raise ValueError(warning_message)
-              logging.info(f'The Cordinality Constraint is satisfied with the values: {agent_sum} > {task_sum}')
-              
-              rows, columns = self.matrix.shape
-              if rows > columns:
-                     self.create_zeros_columns(rows - columns)
+    Example:
+    ----------
+    >>> matrix = np.array([[0, 2, 0], [3, 0, 1], [1, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.uncolored_rows = np.array([True, True, True])
+    >>> state.uncolored_columns = np.array([True, True, True])
+    >>> state.available = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
+    >>> state.final_solution = np.zeros_like(matrix)
+    >>> next_step = step_4_func(state)
+    >>> state.final_solution
+    array([[2, 0, 0],
+           [0, 0, 0],
+           [0, 0, 0]])
+    >>> next_step == step_5_func
+    True
+    """
+    assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 4------------------")
+    # If the element is 0, it assigns 1 to the corresponding element in matrix, indicating that the element is uncovered.
+    # If the element is not 0 (i.e., it's nonzero), it assigns 0 to the corresponding element in matrix, indicating that the element is covered.
+    matrix = np.where(state.matrix == 0, 1, 0)
+    logging.info(f'Temp Matrix at Step 4:\n{matrix}')
 
-       def find_min_value_in_row_and_subtruct(self):
-              """
-              Finds the minimum value in each row and subtracts it from each element in the row.
+    # Create a covered matrix
+    prime_matrix = matrix * state.uncolored_rows[:, np.newaxis]
+    prime_matrix *= np.asarray(state.uncolored_columns, dtype=int)
+    prime_matrix *= state.available.astype(int)
 
-              Parameters
-              ----------
-              `matrix`: The matrix to find the minimum value in each row and subtract it.
+    logging.info(f'Prime Matrix at Step 4:\n{prime_matrix}')
 
-              Returns
-              ----------
-              The matrix with the minimum value in each row subtracted from each element in the row.
+    rows = state.matrix.shape[0]
+    columns = state.matrix.shape[1]
 
-              Example 1:
-              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-              >>> find_min_value_in_row_and_subtruct(matrix)
-              array([[ 0,  1,  2],
-                     [ 0,  1,  2],
-                     [ 0,  1,  2]])
-              
-              Example 2:
-              >>> matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-              >>> find_min_value_in_row_and_subtruct(matrix)
-              array([[ 30,  26,  20,  0,  1],
-                     [ 0,  25,  80,  0,  56],
-                     [ 41,  0,  55,  43,  4],
-                     [ 43,  78,  0,  47,  21]])
-              """
-              for i in range(self.matrix.shape[0]):
-                     min_value = np.min(self.matrix[i])
-                     self.matrix[i] -= min_value
+    while True:
+        # Find an uncovered, available zero
+        row, col = np.unravel_index(np.argmax(prime_matrix), (rows, columns))
+        logging.info(f'Uncovered zero at row: {row}, column: {col}')
+        
+        # If no uncovered zero is found, go to Step 6
+        if prime_matrix[row, col] == 0:
+            logging.info(f'Prime Matrix at ({row},{col}):\n{prime_matrix[row, col]}')
+            logging.info(f'No uncovered zero found. Proceeding to Step 6.')
+            return step_6_func
 
-       def find_min_value_in_column_and_subtruct(self):
-              """
-              Finds the minimum value in each column and subtracts it from each element in the column.
+        # Mark the row and column as prime (which will be equal to 2 in the final solution matrix)
+        state.final_solution[row, col] = 2
+        logging.info(f'Available before marking as unavailable:\n{state.available}')
+        state.set_as_unavailable(row, col)
+        logging.info(f'Available after marking as unavailable:\n{state.available}')
+        
+        # Find the first starred element in the row
+        star_col = np.argmax(state.final_solution[row] == 1)
+        logging.info(f'The starred element in the row: {star_col}')
+        
+        # If no starred element is found, go to Step 5
+        if state.final_solution[row, star_col] != 1:
+            logging.info(f'Final Solution matrix at ({row},{star_col}):\n{state.final_solution[row, star_col]}')
+            logging.info(f'No starred element found in the row. Proceeding to Step 5.')
+            state.initial_primed_zero_row = row
+            state.initial_primed_zero_column = col
+            return step_5_func
+        
+        # Otherwise, cover this row and uncover the column containing the starred zero
+        col = star_col
+        state.uncolored_rows[row] = False
+        state.uncolored_columns[col] = True
+        prime_matrix[:, col] = matrix[:, col] * state.uncolored_rows.astype(int) * state.available[:, col].astype(int)
+        prime_matrix[row] = 0
 
-              Parameters
-              ----------
-              `matrix`: The matrix to find the minimum value in each column and subtract it.
 
-              Returns
-              ----------
-              The matrix with the minimum value in each column subtracted from each element in the column.
+def step_5_func(state):
+    """
+    Construct a series of alternating primed and starred zeros as follows:
+    - `Z0`: represent the uncovered primed zero found in Step 4.
+    - `Z1`: denote the starred zero in the column of Z0 (if any).
+    - `Z2`: denote the primed zero in the row of Z1 (there will always be one).
+    - Continue until the series terminates at a primed zero that has no starred zero in its column. 
+    - Unstar each starred zero of the series, star each primed zero of the series, erase all primes and uncover every line in the matrix. 
+    - Return to Step 3
 
-              Example 1:
-              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-              >>> find_min_value_in_column_and_subtruct(matrix)
-              array([[ 0,  1,  2],
-                     [ 3,  4,  5],
-                     [ 6,  7,  8]])
-              
-              Example 2:
-              >>> matrix = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]])
-              >>> find_min_value_in_column_and_subtruct(matrix)
-              array([[ 0,  0,  0],
-                     [ 0,  0,  0],
-                     [ 0,  0,  0]])
-              """
-              for i in range(self.matrix.shape[1]):
-                     min_value = np.min(self.matrix[:, i])
-                     self.matrix[:, i] -= min_value
+    Example:
+    --------
+    >>> matrix = np.array([[0, 2, 0], [3, 0, 1], [1, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.uncolored_rows = np.array([True, True, True])
+    >>> state.uncolored_columns = np.array([True, True, True])
+    >>> state.available = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
+    >>> state.final_solution = np.array([[0, 1, 0], [0, 0, 0], [0, 0, 2]])
+    >>> state.initial_primed_zero_row = 2
+    >>> state.initial_primed_zero_column = 2
+    >>> state.path = np.full((100, 2), -1)
+    >>> next_step = step_5_func(state)
+    >>> state.final_solution
+    array([[0, 1, 0],
+           [0, 0, 0],
+           [0, 0, 1]])
+    >>> next_step == step_3_func
+    True
+    """
+    assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 5------------------")
+    count = 0
+    path = state.path
+    # Step 5.1: Initialize path with the uncovered primed zero found in Step 4
+    path[count, 0] = state.initial_primed_zero_row
+    path[count, 1] = state.initial_primed_zero_column
+    logging.info(f'Current path, before entering Step 5 while loop:\n{path}')
 
-       def find_zero_star(self):
-              """
-              Traverse the matrix and find the first zero that is not 0*.
-              Mark him as 0* and mark the other 0 in the row and column as unavailable (if they exist).
-              """
-              for i in range(self.matrix.shape[0]):
-                     for j in range(self.matrix.shape[1]):
-                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_zeros:
-                                   self.zeroStars.append((i, j))
-                                   self.colored_columns.append(j)
-                                   self.mark_unavailable_zeros(i, j)
-                                   break
+    while True:
+        logging.info(f'Step 5 while loop')
+        # Step 5.2: Find the first starred zero in the column of the current path element
+        row = np.argmax(state.final_solution[:, path[count, 1]] == 1)
+        if state.final_solution[row, path[count, 1]] != 1:
+            # No starred zero found in the column, end the series.
+            break
+        else:
+            # Add the starred zero to the path
+            count += 1
+            path[count, 0] = row
+            path[count, 1] = path[count - 1, 1]
 
-       def mark_unavailable_zeros(self, row: int, column: int):
-              """
-              Find a zero in the matrix that is not 0* and mark it as unavailable.
+        # Step 5.3: Find the first primed zero in the row of the current path element.
+        col = np.argmax(state.final_solution[path[count, 0]] == 2)
+        if state.final_solution[row, col] != 2:
+            # No primed zero found in the row, mark column as -1 (invalid column)
+            col = -1
+        # Add the primed zero to the path
+        count += 1
+        path[count, 0] = path[count - 1, 0]
+        path[count, 1] = col
+        logging.info(f'Current path:\n{path}')
 
-              Parameters
-              ----------
-              `matrix`: The matrix to find the zero that is not 0* and mark it as unavailable.
-              `unavailable_dict`: The dictionary of the unavailable zeros.
+    # Step 5.4: Convert the path, alternating between unstar and star
+    for i in range(count + 1):
+        if state.final_solution[path[i, 0], path[i, 1]] == 1:
+            # Unstar the starred zero
+            state.final_solution[path[i, 0], path[i, 1]] = 0
+            state.set_as_available(path[i, 0], path[i, 1])
+        else:
+            # Star the primed zero
+            state.find_star_zero(row=path[i, 0], column=path[i, 1])
 
-              Returns
-              ----------
-              Dictionary with the unavailable zeros marked.
+    # Step 5.5: Uncover all rows and columns
+    logging.info(f'Before uncoloring rows and columns:\nUncolored rows: {state.uncolored_rows}, Uncolored columns: {state.uncolored_columns}')
+    state.uncolor_rows_columns()
+    logging.info(f'After uncoloring rows and columns:\nUncolored rows: {state.uncolored_rows}, Uncolored columns: {state.uncolored_columns}')
+    # Step 5.6: Erase all primes
+    logging.info(f'Before erasing primes:\n{state.final_solution}')
+    state.final_solution[state.final_solution == 2] = 0
+    logging.info(f'After erasing primes:\n{state.final_solution}')
+    logging.info(f'End of Step 5')
+    return step_3_func
 
-              Example 1:
-              >>> matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-              >>> unavailable_dict = {}
-              >>> mark_unavailable_zeros(matrix)
-              {}
 
-              Example 2:
-              >>> matrix = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]])
-              >>> unavailable_dict = {}
-              >>> mark_unavailable_zeros(matrix)
-              {0: (1, 0), 1: (2, 0)}
-              """
-              for index_col in range(self.matrix.shape[1]):
-                     if self.matrix[row, index_col] == 0 and (row, index_col) not in self.zeroStars and (row, index_col) not in self.unavailable_zeros and (row, index_col) not in self.prime_z:
-                            self.unavailable_zeros.append((row, index_col))
-              for index_row in range(self.matrix.shape[0]):
-                     if self.matrix[index_row, column] == 0 and (index_row, column) not in self.zeroStars and (index_row, column) not in self.unavailable_zeros and (index_row, column) not in self.prime_z:
-                            self.unavailable_zeros.append((index_row, column))
+def step_6_func(state):
+    """
+    Add the value found in Step 4 to every element of each covered row,
+    and subtract it from every element of each uncovered column.
+    Return to Step 4 without altering any stars, primes, or covered lines.
 
-       def save_smallest_value(self) -> float | None:
-              """
-              Save the smallest value in the matrix (without unavailable values) such that his row or column is not colored.
-              """
-              self.min_value = math.inf
-              for i in range(self.matrix.shape[0]):
-                     for j in range(self.matrix.shape[1]):
-                            if (i, j) not in self.unavailable_zeros and i not in self.colored_rows and j not in self.colored_columns and (i, j) not in self.zeroStars:
-                                   if self.matrix[i,j] < self.min_value:
-                                          self.min_value = self.matrix[i,j]
+    Example:
+    --------
+    >>> matrix = np.array([[0, 2, 0], [3, 0, 1], [1, 0, 0]])
+    >>> task_range_vector = np.array([1, 1, 1])
+    >>> agent_vector = np.array([1, 1, 1])
+    >>> state = ManyToManyAssignment(matrix, task_range_vector, agent_vector)
+    >>> state.uncolored_rows = np.array([True, False, True])
+    >>> state.uncolored_columns = np.array([True, False, True])
+    >>> state.available = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
+    >>> next_step = step_6_func(state)
+    >>> state.matrix
+    array([[0, 2, 0],
+           [3, 0, 1],
+           [1, 0, 0]])
+    >>> next_step == step_4_func
+    True
+    """
+    assert isinstance(state, ManyToManyAssignment)
+    logging.info(f"------------------Step 6------------------")
+    logging.info(f'Matrix at beginning of Step 6:\n{state.matrix}')
+    # Check if there are any uncovered rows and columns
+    if np.any(state.uncolored_rows) and np.any(state.uncolored_columns):
+        # Copy the current state of the matrix
+        temp_matrix = state.matrix.copy()
 
-       def add_h_to_colored_row_elements(self, h: float):
-              """
-              Add the value h to each element in the row that is colored.
-              """
-              for row in range(self.matrix.shape[0]):
-                     for column in range(self.matrix.shape[1]):
-                            if row in self.colored_rows and (row, column) not in self.unavailable_zeros and (row, column) not in self.zeroStars:
-                                   self.matrix[row, column] += h
+        # Assign the maximum value in the matrix to elements where the available matrix is 0
+        max_value = np.max(temp_matrix)
+        temp_matrix[np.where(state.available==0)] = max_value
 
-       def substract_h_from_uncolored_columns(self, h: float) -> None:
-              """
-              Substract the value h from each element in the column that is not colored.
-              """
-              for row in range(self.matrix.shape[0]):
-                     for column in range(self.matrix.shape[1]):
-                            if column not in self.colored_columns and (row, column) not in self.unavailable_zeros and (row, column) not in self.zeroStars:
-                                   self.matrix[row, column] -= h
+        # Find the smallest uncovered value in the matrix
+        minval = np.min(temp_matrix[state.uncolored_rows], axis=0)
+        minval = np.min(minval[state.uncolored_columns])
 
-       def check_colored_columns(self) -> bool:
-              """
-              Check if all the columns are colored.
-              """
-              if len(self.colored_columns) == len(self.matrix):
-                     return True
-              return False
+        # Add the smallest uncovered value to each element of the covered rows
+        for i, covered in enumerate(~state.uncolored_rows):
+            if covered:
+                state.matrix[i] += minval
 
-       def find_uncolored_zeros(self):
-              self.unlcolored_zeros = []
-              for i in range(self.matrix.shape[0]):
-                     for j in range(self.matrix.shape[1]):
-                            if self.matrix[i, j] == 0 and (i, j) not in self.zeroStars and (i, j) not in self.unavailable_zeros:
-                                   if i not in self.colored_rows and j not in self.colored_columns:
-                                          self.unlcolored_zeros.append((i, j))
+        # Subtract the smallest uncovered value from each element of the uncovered columns
+        state.matrix[:, state.uncolored_columns] -= minval
+        logging.info(f'Matrix at end of Step 6 after updating:\n{state.matrix}')
+        # Ensure that there are no negative values in the matrix
+        state.matrix[np.where(state.matrix < 0)] = 0
 
-       def step_3_func(self):
-              for _, column in self.zeroStars:
-                     if column not in self.colored_columns:
-                            self.colored_columns.append(column)
-              if self.check_colored_columns():
-                     self.construct_final_solution()
+    return step_4_func
 
-       def construct_final_solution(self):
-              """
-              Construct the final solution of the assignment as a matrix of 0 and 1 containing the starred zeros.
-              """
-              final_solution = np.zeros(self.matrix.shape, dtype=int)
-              for i, j in self.zeroStars:
-                     final_solution[i, j] = 1
-                     logging.info(f'The agent: {i} is assigned to the task: {j}\n')
-              logging.info(f'The final solution is:\n {final_solution}')
-              return final_solution
 
 if __name__ == "__main__":
-       """
-       Example 1
-       """
-       logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
-       # ability_agent_vector = np.array([1, 2, 1, 1])
-       # task_range_vector = np.array([1, 1, 1, 1, 1])
-       # performance_matrix = np.array([[49, 45, 39, 15, 16], [5, 30, 85, 22, 78], [61, 16, 71, 59, 20], [44, 79, 1, 48, 22]])
-       # object = ManyToManyAssignment()
-       # object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
-
-       """
-       Example 2
-       """
-       ability_agent_vector = np.array([2, 2, 1, 3])
-       task_range_vector = np.array([1, 2, 1, 1, 1])
-       performance_matrix = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-       object = ManyToManyAssignment()
-       object.many_to_many_assignment(task_range_vector, ability_agent_vector, performance_matrix)
+    # In order to enable logging, change the level to logging.info
+    logging.basicConfig(level=logging.WARNING, format='%(levelname)s - %(message)s')
+    # In order to run the doctests, uncomment the following lines:
+    import doctest
+    doctest.testmod(verbose=True)
