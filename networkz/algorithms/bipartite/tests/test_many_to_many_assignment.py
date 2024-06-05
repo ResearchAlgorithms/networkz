@@ -110,16 +110,16 @@ class TestManyToManyAssignment(unittest.TestCase):
         with pytest.raises(ValueError, match="Empty input"):
             kuhn_munkers_backtracking(matrix=performance_matrix, agentVector=ability_agent_vector, taskRangeVector=task_range_vector)
     
-    # def test_example_5(self) -> None:
-    #     ability_agent_vector = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
-    #     task_range_vector = np.array([2, 2, 1, 3])
-    #     performance_matrix = np.array([1, 2, 3, 1, 2])
-    #     try:
-    #         _ = kuhn_munkers_backtracking(matrix=performance_matrix, agentVector=ability_agent_vector, taskRangeVector=task_range_vector)
-    #     except ValueError as e:
-    #         print(e)
-    #         self.assertTrue("The Cardinality Constraint is not satisfied" in str(e))
-    #         print("Test test_example_5 passed")
+    def test_example_5(self) -> None:
+        ability_agent_vector = np.array([[8, 6, 7, 9, 5], [6, 7, 8, 6, 7], [7, 8, 5, 6, 8], [7, 6, 9, 7, 5]])
+        task_range_vector = np.array([2, 2, 1, 3])
+        performance_matrix = np.array([1, 2, 3, 1, 2])
+        try:
+            _ = kuhn_munkers_backtracking(matrix=performance_matrix, agentVector=ability_agent_vector, taskRangeVector=task_range_vector)
+        except ValueError as e:
+            print(e)
+            self.assertTrue("The performance matrix must be 2-dimensional")
+            print("Test test_example_5 passed")
 
     def test_large_example_1(self) -> None:
         ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(50, 50, 3, 3, 100)
