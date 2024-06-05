@@ -61,6 +61,8 @@ class ManyToManyAssignment:
                     logging.warning(warning_message)
                     raise ValueError(warning_message)
 
+            if np.any(self.matrix < 0):
+                raise ValueError("The performance matrix has values less than 0")
             # Duplicate Columns: Ensures each task can appear multiple times.
             self.matrix = np.repeat(self.matrix, self.taskRangeVector, axis=1)
             # Duplicate Rows: Ensures each agent can handle multiple tasks.
@@ -192,6 +194,20 @@ def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskR
     matrix = np.asarray(matrix)
     agentVector = np.asarray(agentVector)
     taskRangeVector = np.asarray(taskRangeVector)
+
+    # Check for empty input
+    if 0 in matrix.shape or len(agentVector) == 0 or len(taskRangeVector) == 0:
+        raise ValueError("Empty input")
+    
+    if matrix.ndim != 2:
+            raise ValueError("The performance matrix must be 2-dimensional")
+        
+    if agentVector.ndim != 1:
+        raise ValueError("The ability agent vector must be 1-dimensional")
+        
+    if taskRangeVector.ndim != 1:
+        raise ValueError("The task range vector must be 1-dimensional")
+
     next_state: ManyToManyAssignment = ManyToManyAssignment(matrix, taskRangeVector, agentVector)
 
     if 0 in matrix.shape:
@@ -543,7 +559,7 @@ def step_6_func(state):
 
 if __name__ == "__main__":
     # In order to enable logging, change the level to logging.info
-    logging.basicConfig(level=logging.WARNING, format='%(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
     # In order to run the doctests, uncomment the following lines:
     import doctest
     doctest.testmod(verbose=True)
