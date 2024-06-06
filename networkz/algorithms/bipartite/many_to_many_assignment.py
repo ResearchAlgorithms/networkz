@@ -15,25 +15,8 @@
 import numpy as np
 import logging
 
-"""
-In order to see all the log messages, change the level to logging.DEBUG.
-In order to skip the debug steps, change the level to logging.INFO.
-In order to skip the info steps, change the level to logging.WARNING.
-"""
 # 1. Create a logger instance
 logger = logging.getLogger("many_to_many_assignment")
-# 2. Set the logging level for the logger
-logger.setLevel(logging.WARNING)
-# 3. Create a console handler
-console = logging.StreamHandler()
-# 4. Set the logging level for the console handler
-console.setLevel(logging.WARNING)
-# 5. Create a formatter for the log messages
-formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: Line %(lineno)d: %(message)s')
-# 6. Set the formatter for the console handler
-console.setFormatter(formatter)
-# 7. Add the console handler to the logger
-logger.addHandler(console)
 
 def kuhn_munkers_backtracking(matrix: np.asarray, agentVector: np.asarray, taskRangeVector: np.asarray) -> dict:
     """
@@ -570,6 +553,27 @@ class ManyToManyAssignment:
             self.set_as_unavailable(row, column)
 
 if __name__ == "__main__":
+    """
+    In order to see all the log messages, change the level to logging.DEBUG.
+    In order to skip the debug steps, change the level to logging.INFO.
+    In order to skip the info steps, change the level to logging.WARNING.
+    """
+    # 2. Set the logging level for the logger
+    logger.setLevel(logging.WARNING)
+    # 3. Create a console handler
+    console = logging.StreamHandler()
+    # 4. Set the logging level for the console handler
+    console.setLevel(logging.WARNING)
+    # 5. Create a formatter for the log messages
+    formatter = logging.Formatter('%(asctime)s: %(levelname)s: %(name)s: Line %(lineno)d: %(message)s')
+    # 6. Set the formatter for the console handler
+    console.setFormatter(formatter)
+    # 7. Add the console handler to the logger
+    logger.addHandler(console)
+
+    """
+    For disabling the doctests, comment out the following line.
+    """
     import doctest
     doctest.testmod(verbose=True)
 
