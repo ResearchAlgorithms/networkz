@@ -25,7 +25,7 @@ def munkres_assignment_method(cost_matrix: np.array):
     m = Munkres()
     indexes = m.compute(cost_matrix)
     total_cost = sum(cost_matrix[row][column] for row, column in indexes)
-    return total_cost
+    return indexes
 
 def measure_time(func, *args) -> tuple[float, any]:
     """
@@ -61,6 +61,41 @@ def generate_random_cost_matrix(size, max_value = 100) -> np.array:
     """
     return np.random.randint(1, max_value + 1, size=(size, size))
 
+def transform_munkres_result(munkres_result):
+    """
+    Transform the Munkres result to match the Backtrack result format.
+
+    Parameters
+    ----------
+    - `munkres_result` : list of tuples
+
+    Returns
+    ----------
+    - `dict` : dict
+    """
+    transformed_result = {}
+    for agent, task in munkres_result:
+        if agent in transformed_result:
+            transformed_result[agent].append(task)
+        else:
+            transformed_result[agent] = [task]
+    return transformed_result
+
+def compare_results(backtrack_result, munkres_result):
+    """
+    Compare the results of the two algorithms.
+
+    Parameters
+    ----------
+    - `backtrack_result` : dict
+    - `munkres_result` : dict
+
+    Returns
+    ----------
+    - `bool` : bool
+    """
+    return backtrack_result == munkres_result
+
 def run_experiment(size: int) -> dict:
     """
     Run the experiment for the given size.
@@ -81,20 +116,27 @@ def run_experiment(size: int) -> dict:
     task_range_vector = np.ones(size, dtype=int)
     
     # Measure time for custom implementation
-    munkers_with_backtracking_time,_ = measure_time(kuhn_munkers_backtracking, cost_matrix, ability_agent_vector, task_range_vector)
-    
+    munkers_with_backtracking_time, back_track_result = measure_time(kuhn_munkers_backtracking, cost_matrix, ability_agent_vector, task_range_vector)
+    print(f'Backtrack Result: {back_track_result}')
+
     # Measure time for Munkres implementation
-    munkres_without_backtracking_time,_ = measure_time(munkres_assignment_method, cost_matrix)
+    munkres_without_backtracking_time, munkers_result = measure_time(munkres_assignment_method, cost_matrix)
+    transform_munkred_result = transform_munkres_result(munkers_result)
+    print(f'Transformed Munkres Result: {transform_munkred_result}')
+
+    result_match = compare_results(back_track_result, transform_munkred_result)
+    print(f'Result Match: {result_match}')
     
     # Return the results in the format expected by experiments_csv
     return {
         'size': size,
         'munkers_with_backtracking_time': munkers_with_backtracking_time,
-        'munkres_without_backtracking_time': munkres_without_backtracking_time
+        'munkres_without_backtracking_time': munkres_without_backtracking_time,
+        'result_match': result_match
     }
 
 input_ranges = {
-    'size': [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800]
+    'size': [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800]
 }
 
 # Initialize the experiment
