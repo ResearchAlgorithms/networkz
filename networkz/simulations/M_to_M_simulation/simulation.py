@@ -7,11 +7,12 @@ import numpy as np
 import time
 import pandas as pd
 import matplotlib.pyplot as plt
-from fairpyx.utils.graph_utils import many_to_many_matching
+from collections import defaultdict
+from fairpyx.utils.graph_utils import many_to_many_matching, many_to_many_matching_using_network_flow
 from networkz.algorithms.bipartite.many_to_many_assignment import kuhn_munkers_backtracking
 import experiments_csv as ec
 
-def measure_time(func, *args) -> tuple[float, any]:
+def measure_time(func, *args, **kwargs) -> tuple[float, any]:
     """
     Measure the execution time of a function
 
@@ -26,7 +27,7 @@ def measure_time(func, *args) -> tuple[float, any]:
     - `result` : any
     """
     start_time = time.time()
-    result = func(*args)
+    result = func(*args, **kwargs)
     end_time = time.time()
     return end_time - start_time, result
 
@@ -60,6 +61,49 @@ def generate_random_test_case(num_agents, num_tasks, max_ability, max_task_range
     
     return ability_agent_vector, task_range_vector, performance_matrix
 
+def calculate_total_cost(assignments, performance_matrix):
+    """
+    Calculate the total cost from the assignments.
+
+    Parameters
+    ----------
+    - `assignments` : dict
+    - `performance_matrix` : np.array
+
+    Returns
+    ----------
+    - `total_cost` : float
+    """
+    total_cost = 0
+    for agent, tasks in assignments.items():
+        agent_index = int(agent.split('_')[1])
+        for task in tasks:
+            if task != -1:
+                task_index = int(task.split('_')[1])
+                total_cost += performance_matrix[agent_index, task_index]
+    return total_cost
+
+def transform_backtrack_result(result):
+    """
+    Transform the Backtrack result to match the expected format.
+
+    Parameters
+    ----------
+    - `result` : list of tuples
+
+    Returns
+    ----------
+    - `dict` : dict
+    """
+    assignments = defaultdict(list)
+    for agent, tasks in result.items():
+        agent_key = f'agent_{agent}'
+        for task in tasks:
+            if task != -1:
+                task_key = f'item_{task}'
+                assignments[agent_key].append(task_key)
+    return assignments
+
 def run_experiment(size: int) -> dict:
     """
     Run the experiment for the given size.
@@ -73,7 +117,8 @@ def run_experiment(size: int) -> dict:
     - `dict` : dict
     """
     # Generate a random cost matrix of the given size
-    ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(50, 50, 3, 3, 100)
+    ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(num_agents=size, num_tasks=size, max_ability=3, max_task_range=3, max_performance_value=100)
+
 
     # Convert inputs for fairxpy function
     item_capacities = {f"item_{i}": task_range_vector[i] for i in range(len(task_range_vector))}
@@ -81,21 +126,36 @@ def run_experiment(size: int) -> dict:
     valuations = {f"agent_{i}": {f"item_{j}": performance_matrix[i][j] for j in range(len(performance_matrix[i]))} for i in range(len(performance_matrix))}
     
     # Measure time for custom implementation
-    munkers_with_backtracking_time,_ = measure_time(kuhn_munkers_backtracking, performance_matrix, ability_agent_vector, task_range_vector)
+    munkers_with_backtracking_time, backtrack_result = measure_time(kuhn_munkers_backtracking, performance_matrix, ability_agent_vector, task_range_vector)
+    # print(f'Backtrack Result: {backtrack_result}')
+    backtrack_result = transform_backtrack_result(backtrack_result)
+    backtrack_total_cost = calculate_total_cost(backtrack_result, performance_matrix)
 
     # Measure time for fairxpy implementation
-    fairxpy_time, _ = measure_time(many_to_many_matching, item_capacities, agent_capacities, valuations)
+    fairxpy_time, fairxpy_result = measure_time(
+        many_to_many_matching_using_network_flow, 
+        items=item_capacities.keys(), 
+        item_capacity=item_capacities.__getitem__,
+        agents=agent_capacities.keys(), 
+        agent_capacity=agent_capacities.__getitem__,
+        agent_item_value=lambda agent, item: -valuations[agent][item],
+        allow_negative_value_assignments=True
+    )
+    # print(f'Fairxpy Result: {fairxpy_result}')
+    faipyx_total_cost = calculate_total_cost(fairxpy_result, performance_matrix)
 
 
     # Return the results in the format expected by experiments_csv
     return {
         'size': size,
         'munkers_with_backtracking_time': munkers_with_backtracking_time,
-        'fairxpy_many_to_many_matching_time': fairxpy_time
+        'fairxpy_many_to_many_matching_time': fairxpy_time,
+        'backtrack_total_cost': backtrack_total_cost,
+        'faipyx_total_cost': faipyx_total_cost
     }
 
 input_ranges = {
-    'size': [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800]
+    'size': [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 200, 300, 400]
 }
 
 # Initialize the experiment
@@ -112,7 +172,7 @@ print(df)
 
 # Plot the results
 plt.plot(df['size'], df['munkers_with_backtracking_time'], label='Munkers with Backtracking')
-plt.plot(df['size'], df['fairxpy_many_to_many_matching_time'], label='Fairxpy Many-to-Many Matching')
+plt.plot(df['size'], df['fairxpy_many_to_many_matching_time'], label='Fairpyx Many-to-Many Matching')
 plt.xlabel('Size')
 plt.ylabel('Time (seconds)')
 plt.legend()
