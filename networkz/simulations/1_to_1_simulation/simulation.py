@@ -24,7 +24,6 @@ def munkres_assignment_method(cost_matrix: np.array):
     """
     m = Munkres()
     indexes = m.compute(cost_matrix)
-    total_cost = sum(cost_matrix[row][column] for row, column in indexes)
     return indexes
 
 def measure_time(func, *args) -> tuple[float, any]:
@@ -123,16 +122,12 @@ def run_experiment(size: int) -> dict:
     munkres_without_backtracking_time, munkers_result = measure_time(munkres_assignment_method, cost_matrix)
     transform_munkred_result = transform_munkres_result(munkers_result)
     print(f'Transformed Munkres Result: {transform_munkred_result}')
-
-    result_match = compare_results(back_track_result, transform_munkred_result)
-    print(f'Result Match: {result_match}')
     
     # Return the results in the format expected by experiments_csv
     return {
         'size': size,
         'munkers_with_backtracking_time': munkers_with_backtracking_time,
         'munkres_without_backtracking_time': munkres_without_backtracking_time,
-        'result_match': result_match
     }
 
 input_ranges = {
@@ -152,8 +147,8 @@ df = pd.read_csv('results/assignment_experiment_results.csv')
 print(df)
 
 # Plot the results
-plt.plot(df['size'], df['munkers_with_backtracking_time'], label='Munkers With Backtracking Method')
-plt.plot(df['size'], df['munkres_without_backtracking_time'], label='Munkres Without Backtracking Method')
+plt.plot(df['size'], df['munkers_with_backtracking_time'], label='Munkers With Backtracking')
+plt.plot(df['size'], df['munkres_without_backtracking_time'], label='Munkres Without Backtracking')
 plt.xlabel('Matrix Size')
 plt.ylabel('Time (seconds)')
 plt.legend()

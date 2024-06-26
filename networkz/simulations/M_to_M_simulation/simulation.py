@@ -8,7 +8,7 @@ import time
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import defaultdict
-from fairpyx.utils.graph_utils import many_to_many_matching, many_to_many_matching_using_network_flow
+from fairpyx.utils.graph_utils import many_to_many_matching_using_network_flow
 from networkz.algorithms.bipartite.many_to_many_assignment import kuhn_munkers_backtracking
 import experiments_csv as ec
 
@@ -18,8 +18,9 @@ def measure_time(func, *args, **kwargs) -> tuple[float, any]:
 
     Parameters
     ----------
-    - `func` : function
-    - `cost_matrix` : np.array
+    - `func` : function to measure
+    - `*args`: arguments
+    - `**kwargs`: keyword arguments
 
     Returns
     ----------
@@ -119,7 +120,6 @@ def run_experiment(size: int) -> dict:
     # Generate a random cost matrix of the given size
     ability_agent_vector, task_range_vector, performance_matrix = generate_random_test_case(num_agents=size, num_tasks=size, max_ability=3, max_task_range=3, max_performance_value=100)
 
-
     # Convert inputs for fairxpy function
     item_capacities = {f"item_{i}": task_range_vector[i] for i in range(len(task_range_vector))}
     agent_capacities = {f"agent_{i}": ability_agent_vector[i] for i in range(len(ability_agent_vector))}
@@ -155,7 +155,7 @@ def run_experiment(size: int) -> dict:
     }
 
 input_ranges = {
-    'size': [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 200, 300, 400]
+    'size': [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 200, 300, 400, 450, 500, 600, 700]
 }
 
 # Initialize the experiment
@@ -173,7 +173,7 @@ print(df)
 # Plot the results
 plt.plot(df['size'], df['munkers_with_backtracking_time'], label='Munkers with Backtracking')
 plt.plot(df['size'], df['fairxpy_many_to_many_matching_time'], label='Fairpyx Many-to-Many Matching')
-plt.xlabel('Size')
+plt.xlabel('Matrix Size')
 plt.ylabel('Time (seconds)')
 plt.legend()
 plot_path = 'results/performance_comparison_plot.png'
